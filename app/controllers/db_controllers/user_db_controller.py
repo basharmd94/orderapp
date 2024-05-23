@@ -1,6 +1,6 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from models.users_model import ApiUsers, UrlRoutes
+from models.users_model import ApiUsers
 from controllers.db_controllers.database_controller import DatabaseController
 
 class UserDBController(DatabaseController):
@@ -15,14 +15,6 @@ class UserDBController(DatabaseController):
         """
         return self.db.query(ApiUsers).filter(ApiUsers.username == username).first()
 
-    def get_urlroute_by_path(self, path: str) -> UrlRoutes:
-        """
-        Fetch a URL route by its path.
-
-        :param path: The path of the URL route.
-        :return: An instance of UrlRoutes or None if not found.
-        """
-        return self.db.query(UrlRoutes).filter(UrlRoutes.urldb == path).first()
 
     def get_user_by_id(self, user_id: str) -> ApiUsers:
         """

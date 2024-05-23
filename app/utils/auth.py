@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Depends, status, Request
+from fastapi import HTTPException, Depends, status
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt, JWTError
@@ -70,7 +70,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), ) -> UserRegistrationS
     )
 
 
-def get_current_user_with_access(request: Request, token: str = Depends(oauth2_scheme), is_admin: bool = False) -> UserRegistrationSchema:
+def get_current_user_with_access(token: str = Depends(oauth2_scheme), is_admin: bool = False) -> UserRegistrationSchema:
     database_controller = UserDBController()
     user = get_current_user(token)
     
@@ -83,29 +83,19 @@ def get_current_user_with_access(request: Request, token: str = Depends(oauth2_s
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User is not active")
 
-    path = str(request.url.path)
-    print(path)  # Debugging line to print the URL path
+    # print(request.query_params['search'])  # Debugging line to print the URL path
 
-    url_route = database_controller.get_urlroute_by_path(path)
-    if not url_route:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="No route found for the path")
-
-    accodes = url_route.acodes.split(',')
 
     # Check if user is admin or user.accode is in the accodes list
     if is_admin and user_db.is_admin != "is_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     
-    if user_db.accode not in accodes and not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access not allowed")
 
     return user
 
-def get_current_admin(request: Request, token: str = Depends(oauth2_scheme)) -> UserRegistrationSchema:
-    return get_current_user_with_access(request, token, is_admin=True)
+def get_current_admin( token: str = Depends(oauth2_scheme)) -> UserRegistrationSchema:
+    return get_current_user_with_access( token, is_admin=True)
 
-def get_current_normal_user(request: Request, token: str = Depends(oauth2_scheme)) -> UserRegistrationSchema:
-    return get_current_user_with_access(request, token, is_admin=False)
+def get_current_normal_user( token: str = Depends(oauth2_scheme)) -> UserRegistrationSchema:
+    return get_current_user_with_access(token, is_admin=False)

@@ -88,7 +88,7 @@ class UserRegistrationController(DatabaseController):
             businessId=users.businessId,
             employeeCode=users.user_id,
             terminal=next_terminal,
-            is_admin="is_admin" if user_data["is_admin"] == "abcdefgh" else "None",
+            is_admin="is_admin" if user_data["is_admin"] == "abcdefgh" else "user",
             accode=users.accode,
         )
 

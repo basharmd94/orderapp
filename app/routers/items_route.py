@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Path, Depends, Request, Query
+from fastapi import APIRouter, HTTPException, status, Path, Depends, Query
 from logs import setup_logger
 from database import get_db
 from models.items_model import Base, Caitem
@@ -20,7 +20,6 @@ items_db_controller = ItemsDBController()
     "/all/{zid}", response_model=Union[List[ItemsSchema], List[ItemsBaseSchema]]
 )
 async def get_all_items(
-    request: Request,
     zid: int,
     item: Annotated[str,  Query(min_length=3, description="Put Items ID or Items Name")],
     limit: int = 10,
