@@ -1,6 +1,7 @@
 # controllers/user_registration_controller.py
 from fastapi import HTTPException, status
-from controllers.database_controller import DatabaseController
+from controllers.db_controllers.database_controller import DatabaseController
+from controllers.db_controllers.user_db_controller import UserDBController
 from schemas.user_schema import UserRegistrationSchema
 from models.users_model import Prmst, ApiUsers, Logged
 from utils.error import error_details
@@ -14,21 +15,23 @@ logger = setup_logger()
 
 
 class UserRegistrationController(DatabaseController):
+
     def check_user_id_in_prmst(self, user_id: str):
         prmst_user = self.db.query(Prmst).filter(Prmst.xemp == user_id).first()
         if not prmst_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_details("You have no ID in employee table")
+                detail=error_details("You have no ID in employee table"),
             )
 
     def check_user_is_active(self, user_id: str):
         user_is_active = self.db.query(Prmst).filter_by(xemp=user_id).first()
-        if user_is_active is None or user_is_active.xstatusemp != 'A-Active':
+        if user_is_active is None or user_is_active.xstatusemp != "A-Active":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_details(
-                    "Your ID has been deactivated or blank status in employee table")
+                    "Your ID has been deactivated or blank status in employee table"
+                ),
             )
 
     def check_username_exists(self, username: str):
@@ -36,7 +39,8 @@ class UserRegistrationController(DatabaseController):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_details(
-                    "User Name already registered in registration table")
+                    "User Name already registered in registration table"
+                ),
             )
 
     def check_employeeCode_exist_in_apiusers(self, user_id: str):
@@ -44,15 +48,15 @@ class UserRegistrationController(DatabaseController):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_details(
-                    "Employee code already registered in registration table")
+                    "Employee code already registered in registration table"
+                ),
             )
 
     def check_email_exists(self, email: str):
         if self.db.query(ApiUsers).filter(ApiUsers.email == email).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_details(
-                    "Email already registered in registration table")
+                detail=error_details("Email already registered in registration table"),
             )
 
     def hash_password(self, password: str) -> str:
@@ -67,8 +71,12 @@ class UserRegistrationController(DatabaseController):
 
         hashed_password = self.hash_password(users.password)
         user_data = users.dict()
+        # print(user_data)
         user_data["password"] = hashed_password
         user_data["confirm_password"] = hashed_password
+        
+        database_controller = UserDBController()
+        next_terminal = database_controller.get_next_terminal()
 
         new_user = ApiUsers(
             username=users.user_name,
@@ -79,8 +87,9 @@ class UserRegistrationController(DatabaseController):
             status=users.status,
             businessId=users.businessId,
             employeeCode=users.user_id,
-            is_admin="is_admin" if user_data['is_admin'] == 'abcdefgh' else "None",
-            accode=users.accode
+            terminal=next_terminal,
+            is_admin="is_admin" if user_data["is_admin"] == "abcdefgh" else "None",
+            accode=users.accode,
         )
 
         self.db.add(new_user)

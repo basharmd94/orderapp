@@ -1,5 +1,6 @@
 from passlib.context import CryptContext
 
+import random
 # Define the hash context with the same parameters used for hashing
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"])
 
@@ -12,3 +13,12 @@ if pwd_context.verify(password, hashed_password):
     print("Password is correct!")
 else:
     print("Password is incorrect!")
+
+
+terminal = "T012-"
+
+random_number = terminal + str(random.randint(1, 99999)) + "-" + str(random.randint(1, 99999))  + "-" + str(random.randint(1, 99999))
+
+print(random_number)
+
+print (random.randint(1,5))

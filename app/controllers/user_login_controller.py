@@ -1,6 +1,6 @@
 # controllers/user_login_controller.py
 from fastapi import HTTPException, status, Form
-from controllers.database_controller import DatabaseController
+from controllers.db_controllers.database_controller import DatabaseController
 from models.users_model import ApiUsers, Logged
 from fastapi.security import OAuth2PasswordRequestForm
 from utils.error import error_details

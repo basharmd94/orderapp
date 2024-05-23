@@ -6,8 +6,7 @@ from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from schemas.user_schema import UserRegistrationSchema
 from models.users_model import ApiUsers
-from database import get_db
-from controllers.database_controller import DatabaseController
+from controllers.db_controllers.user_db_controller import UserDBController
 
 
 SECRET_KEY = "f1b2437d4edb14f189fab6821e7d8855b4e702ae169eb391232131da260a9f2b"
@@ -37,7 +36,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 #     return encoded_jwt
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> UserRegistrationSchema:
+def get_current_user(token: str = Depends(oauth2_scheme), ) -> UserRegistrationSchema:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -53,7 +52,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserRegistrationSch
     except jwt.JWTError:
         raise credentials_exception
 
-    database_controller = DatabaseController()
+    database_controller = UserDBController()
     user = database_controller.get_user_by_username(username)
     if user is None:
         raise credentials_exception
@@ -65,48 +64,21 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserRegistrationSch
         email=user.email,
         status=user.status,
         businessId=user.businessId,
-        accode=user.accode,
-        is_admin=user.is_admin
-    )
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> UserRegistrationSchema:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("username")
-        if username is None:
-            raise credentials_exception
-    except jwt.ExpiredSignatureError:
-        raise credentials_exception
-    except jwt.JWTError:
-        raise credentials_exception
-
-    database_controller = DatabaseController()
-    user = database_controller.get_user_by_username(username)
-    if user is None:
-        raise credentials_exception
-
-    return UserRegistrationSchema(
-        user_id=user.employeeCode,
-        user_name=user.username,
-        mobile=user.mobile,
-        email=user.email,
-        status=user.status,
-        businessId=user.businessId,
+        terminal=user.terminal,
         accode=user.accode,
         is_admin=user.is_admin
     )
 
 
 def get_current_user_with_access(request: Request, token: str = Depends(oauth2_scheme), is_admin: bool = False) -> UserRegistrationSchema:
+    database_controller = UserDBController()
     user = get_current_user(token)
     
-    if user.status != "active":
+    # Fetch the user status from the database
+
+    user_db = database_controller.get_user_by_id(user.user_id)
+    
+    if user_db.status != "active":
         # Blacklist user logic here if needed
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User is not active")
@@ -114,7 +86,6 @@ def get_current_user_with_access(request: Request, token: str = Depends(oauth2_s
     path = str(request.url.path)
     print(path)  # Debugging line to print the URL path
 
-    database_controller = DatabaseController()
     url_route = database_controller.get_urlroute_by_path(path)
     if not url_route:
         raise HTTPException(
@@ -123,7 +94,11 @@ def get_current_user_with_access(request: Request, token: str = Depends(oauth2_s
     accodes = url_route.acodes.split(',')
 
     # Check if user is admin or user.accode is in the accodes list
-    if user.is_admin != "is_admin" and user.accode not in accodes:
+    if is_admin and user_db.is_admin != "is_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    if user_db.accode not in accodes and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access not allowed")
 

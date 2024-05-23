@@ -1,9 +1,6 @@
-
-
 registration_example = {
     "json_schema_extra": {
         "examples": [
-
             {
                 "user_id": "LO--000084",
                 "user_name": "basharmd95",
@@ -14,7 +11,7 @@ registration_example = {
                 "accode": "0",
                 "is_admin": "",
                 "password": "12345678",
-                "confirm_password": "12345678"
+                "confirm_password": "12345678",
             }
         ]
     }

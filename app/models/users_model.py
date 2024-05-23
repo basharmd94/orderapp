@@ -22,6 +22,7 @@ class ApiUsers(Base):
     accode = Column(String)
 
 
+
 # logged table
 class Logged(Base):
     __tablename__ = "logged"
@@ -46,11 +47,11 @@ class Prmst(Base):
     xstatusemp = Column(String)
 
 
-
 class UrlRoutes(Base):
     __tablename__ = "urlroutes"
 
     id = Column(Integer, index=True, primary_key=True, autoincrement=True)
     zid = Column(String, index=True)
+    routes = Column( String)
     urldb = Column(String)
     acodes = Column(String)

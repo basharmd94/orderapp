@@ -17,8 +17,7 @@ async def user_registration(users: UserRegistrationSchema, request: Request):
     user_registration_controller = UserRegistrationController()
 
     try:
-        new_user = user_registration_controller.register_user(
-            users)
+        new_user = user_registration_controller.register_user(users)
         logger.info(f"User registered successfully: {new_user.username}")
         return {"user": new_user}
     except HTTPException as e:
@@ -37,25 +36,26 @@ async def user_login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise e
 
 
-@router.get("/protected/endpoint")
-async def protected_endpoint(request : Request, current_user: UserRegistrationSchema = Depends(get_current_user)):
-    print (request.url.path)
-    if current_user.status != "active":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User is not active")
-    return {"message": "This is a protected endpoint"}
+#  DEMO
+# @router.get("/protected/endpoint")
+# async def protected_endpoint(request : Request, current_user: UserRegistrationSchema = Depends(get_current_user)):
+#     print (request.url.path)
+#     if current_user.status != "active":
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN, detail="User is not active")
+#     return {"message": "This is a protected endpoint"}
 
 
-@router.get("/me")
-async def hello(request:Request, current_user: UserRegistrationSchema = Depends(get_current_user)):
-    print (request.url.path)
-    return "hello"
+# @router.get("/me")
+# async def hello(request:Request, current_user: UserRegistrationSchema = Depends(get_current_user)):
+#     print (request.url.path)
+#     return "hello"
 
-    
-@router.get("/protected/admin-endpoint")
-async def protected_admin_endpoint(request: Request, current_user: UserRegistrationSchema = Depends(get_current_admin)):
-    return {"message": "This is a protected admin endpoint"}
 
-@router.get("/protected/user-endpoint")
-async def protected_user_endpoint(request: Request, current_user: UserRegistrationSchema = Depends(get_current_normal_user)):
-    return {"message": "This is a protected user endpoint"}
+# @router.get("/protected/admin-endpoint")
+# async def protected_admin_endpoint(request: Request, current_user: UserRegistrationSchema = Depends(get_current_admin)):
+#     return {"message": "This is a protected admin endpoint"}
+
+# @router.get("/protected/user-endpoint")
+# async def protected_user_endpoint(request: Request, current_user: UserRegistrationSchema = Depends(get_current_normal_user)):
+#     return {"message": "This is a protected user endpoint"}

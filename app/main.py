@@ -66,7 +66,7 @@ app = FastAPI(
 app.include_router(items_route.router, 
                    prefix="/api/v1/items",
                    tags=["Items"],
-                   responses={418: {"description": "Items endpoint "}},)
+                   responses={418: {"description": "Inventory, Items, Stock endpoint "}},)
 
 app.include_router(users_route.router,
                    prefix="/api/v1/users",
