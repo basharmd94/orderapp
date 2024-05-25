@@ -22,7 +22,7 @@ class UserBaseSchema(BaseModel):
     email: EmailStr
     status: Union[str, None] = Field(default="active", title="default is active")
     businessId: int
-    # terminal: str
+    terminal: str
     accode: Union[str, None] = Field(default=0)
     is_admin: Union[str, None] = None
 

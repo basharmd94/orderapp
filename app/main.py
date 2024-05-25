@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
-from routers import opord_route, items_route, users_route
+from routers import opord_route, items_route, users_route, customers_route, orders_route
 from database import engine, Base
 
 
@@ -38,7 +38,7 @@ tags_metadata = [
 ]
 
 
-app = FastAPI( 
+app = FastAPI(
     title="HMBR Mobile Apps API",
     description=description,
     summary="Api Version v1",
@@ -47,31 +47,43 @@ app = FastAPI(
     contact={
         "name": "Bashar",
         "url": "https://bashar.pythonanywhere.com/",
-        "email": "mat197194@gmail.com"
+        "email": "mat197194@gmail.com",
     },
     license_info={
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
         "identifier": "MIT",
     },
-    openapi_tags=tags_metadata
-
+    openapi_tags=tags_metadata,
 )
 
 
+app.include_router(
+    items_route.router,
+    prefix="/api/v1/items",
+    tags=["Items"],
+    responses={418: {"description": "Inventory, Items, Stock endpoint "}},
+)
 
+app.include_router(
+    users_route.router,
+    prefix="/api/v1/users",
+    tags=["Users"],
+    responses={418: {"description": "Users endpoint"}},
+)
 
-
-
-app.include_router(items_route.router, 
-                   prefix="/api/v1/items",
-                   tags=["Items"],
-                   responses={418: {"description": "Inventory, Items, Stock endpoint "}},)
-
-app.include_router(users_route.router,
-                   prefix="/api/v1/users",
-                   tags=["Users"],
-                   responses={418: {"description": "Users endpoint"}},)
+app.include_router(
+    customers_route.router,
+    prefix="/api/v1/customers",
+    tags=["Customers"],
+    responses={418: {"description": "Customers endpoint"}},
+)
+app.include_router(
+    orders_route.router,
+    prefix="/api/v1/order",
+    tags=["Orders"],
+    responses={418: {"description": "Create Order endpoint"}},
+)
 
 
 # if __name__ == "__main__":

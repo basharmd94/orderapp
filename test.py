@@ -1,24 +1,49 @@
-from passlib.context import CryptContext
+from geopy.geocoders import Nominatim
 
-import random
-# Define the hash context with the same parameters used for hashing
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"])
+def get_current_location():
+    try:
+        # Initialize Nominatim geocoder
+        geolocator = Nominatim(user_agent="location_lookup")
 
-# Hash the password for verification
-hashed_password = "$pbkdf2-sha256$29000$cU6ptfZ.z3mvFeJcC2GM8Q$iSOs66amDgPiGWRESAGF30tsad2dPh/QRpXEzYJlhQk"
+        # Using geocoder to get current latitude and longitude
+        location = geolocator.geocode("me")
+        latitude, longitude = 23.76478518229741, 90.41535256622923
+        return latitude, longitude
+    except Exception as e:
+        print("Error:", e)
+        return None, None
 
-# Check if the password matches the hash
-password = "Bsr_3456"
-if pwd_context.verify(password, hashed_password):
-    print("Password is correct!")
-else:
-    print("Password is incorrect!")
+def get_location_name(latitude, longitude):
+    try:
+        # Initialize Nominatim geocoder
+        geolocator = Nominatim(user_agent="location_lookup")
 
+        # Perform reverse geocoding
+        location_info = geolocator.reverse((latitude, longitude))
+        
+        # Extract the location name from the response
+        location_name = location_info.address
+        return location_name
+    except Exception as e:
+        print("Error:", e)
+        return None
 
-terminal = "T012-"
+def main():
+    # Get current location
+    latitude, longitude = get_current_location()
+    if latitude is not None and longitude is not None:
+        print("Latitude:", latitude)
+        print("Longitude:", longitude)
 
-random_number = terminal + str(random.randint(1, 99999)) + "-" + str(random.randint(1, 99999))  + "-" + str(random.randint(1, 99999))
+        # Get location name
+        location_name = get_location_name(latitude, longitude)
+        if location_name:
+            print("Location Name:", location_name)
+        else:
+            print("Failed to retrieve location name.")
+    else:
+        print("Failed to retrieve current location.")
 
-print(random_number)
+if __name__ == "__main__":
+    main()
 
-print (random.randint(1,5))

@@ -53,3 +53,5 @@ class UserDBController(DatabaseController):
                 new_terminal = "T0001"
 
         return new_terminal
+
+

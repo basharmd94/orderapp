@@ -15,27 +15,36 @@ logger = setup_logger()
 
 class UserLoginController(DatabaseController):
     async def user_login(self, form_data: OAuth2PasswordRequestForm = Form(...)):
-        logged_user = self.db.query(Logged).filter_by(
-            username=form_data.username).first()
+        logged_user = (
+            self.db.query(Logged).filter_by(username=form_data.username).first()
+        )
+
         if logged_user and logged_user.status == "Logged In":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=error_details(
-                    "User already logged in")
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_details("User already logged in"),
             )
 
-        user = self.db.query(ApiUsers).filter_by(
-            username=form_data.username).first()
-
+        user = self.db.query(ApiUsers).filter_by(username=form_data.username).first()
+        # if user is none and not match password
         if not user or not self.verify_password(form_data.password, user.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail="Incorrect username or password")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+            )
+        # if user not active in apiusers table then raise exception
+        if user.status != "active":
+            logger.error(f"User {user.username} not active in apiusers table")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User is not active"
+            )
 
         access_token_data = {
             "username": user.username,
             "accode": user.accode,
             "status": user.status,
             "user_id": user.id,
-            "is_admin": user.is_admin
+            "is_admin": user.is_admin,
         }
         access_token = create_access_token(data=access_token_data)
 
@@ -53,7 +62,7 @@ class UserLoginController(DatabaseController):
             businessId=user.businessId,
             access_token=access_token,
             refresh_token=access_token,
-            status="Logged In"
+            status="Logged In",
         )
         self.db.add(new_logged_user)
         self.db.commit()

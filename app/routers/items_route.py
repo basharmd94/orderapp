@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Path, Depends, Query
+from fastapi import APIRouter, HTTPException, status, Path, Depends, Query, Request
 from logs import setup_logger
 from database import get_db
 from models.items_model import Base, Caitem
@@ -20,13 +20,19 @@ items_db_controller = ItemsDBController()
     "/all/{zid}", response_model=Union[List[ItemsSchema], List[ItemsBaseSchema]]
 )
 async def get_all_items(
+    request: Request,
     zid: int,
-    item: Annotated[str,  Query(min_length=3, description="Put Items ID or Items Name")],
+    item: Annotated[str, Query(min_length=3, description="Put Items ID or Items Name")],
     limit: int = 10,
     offset: int = 0,
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
-):  
+):
     # print(current_user.terminal)
+    current_user_acccode = current_user.accode
+
+    print(current_user_acccode, "item_route")
+
+
     if zid in [100000, 100001]:
         items = items_db_controller.get_all_items(
             zid=zid, item_name=item, limit=limit, offset=offset
@@ -37,13 +43,13 @@ async def get_all_items(
                 detail=error_details("No items found"),
             )
         return items
-    else:
-        items = items_db_controller.get_all_items_exclude_hmbr(
-            zid=zid, item_name=item, limit=limit, offset=offset
+
+    items = items_db_controller.get_all_items_exclude_hmbr(
+        zid=zid, item_name=item, limit=limit, offset=offset
+    )
+    if not items:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_details("No items found"),
         )
-        if not items:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_details("No items found"),
-            )
-        return items
+    return items

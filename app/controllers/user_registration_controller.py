@@ -34,7 +34,7 @@ class UserRegistrationController(DatabaseController):
                 ),
             )
 
-    def check_username_exists(self, username: str):
+    def check_username_exists(self, username: str,):
         if self.db.query(ApiUsers).filter(ApiUsers.username == username).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

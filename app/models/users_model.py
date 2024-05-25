@@ -9,11 +9,11 @@ class ApiUsers(Base):
     __tablename__ = "apiUsers"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
+    username = Column(String,  index=True)
     password = Column(String)
-    employee_name = Column(String)
-    email = Column(String, unique=True, index=True)
-    mobile = Column(String)
+    employee_name = Column(String, index=True)
+    email = Column(String,  index=True)
+    mobile = Column(String,index=True)
     businessId = Column(Integer)
     employeeCode = Column(String)
     terminal = Column(String)
