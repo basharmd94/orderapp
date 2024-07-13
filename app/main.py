@@ -2,6 +2,9 @@ from fastapi import FastAPI
 import uvicorn
 from routers import opord_route, items_route, users_route, customers_route, orders_route
 from database import engine, Base
+from fastapi.middleware.cors import CORSMiddleware
+import multiprocessing
+import uvicorn
 
 
 Base.metadata.create_all(bind=engine)  # Add bind=engine here
@@ -29,7 +32,7 @@ tags_metadata = [
     },
     {
         "name": "Items",
-        "description": "Manage items. So _fancy_ they have their own docs.",
+        "description": "Get all items from all section",
         # "externalDocs": {
         #     "description": "Items external docs",
         #     "url": "https://fastapi.tiangolo.com/",
@@ -58,6 +61,22 @@ app = FastAPI(
 )
 
 
+# add cors
+origins = [
+    "http://localhost.tiangolo.com",
+    "https://localhost.tiangolo.com",
+    "http://localhost",
+    "http://localhost:8080",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(
     items_route.router,
     prefix="/api/v1/items",
@@ -85,6 +104,6 @@ app.include_router(
     responses={418: {"description": "Create Order endpoint"}},
 )
 
+if __name__ == "__main__":
 
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="localhost", port=9800, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, workers=4)
