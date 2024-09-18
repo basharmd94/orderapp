@@ -2,15 +2,16 @@ from pydantic import (
     BaseModel,
     Field,
     EmailStr,
-    model_validator,
     ValidationError,
     field_validator,
+    model_validator,
 )
 from typing import Union
-from typing_extensions import Self
 from passlib.context import CryptContext
-from utils.examples import registration_example
-
+from typing_extensions import Self
+from utils.examples import (
+    registration_example,
+)  # Assuming this imports the examples correctly
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -18,12 +19,12 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 class UserBaseSchema(BaseModel):
     user_id: str = Field(..., min_length=6)
     user_name: str = Field(..., min_length=3)
-    mobile: str = Field(..., max_length=11)
-    email: EmailStr
-    status: Union[str, None] = Field(default="active", title="default is active")
-    businessId: int
-    terminal: str
-    accode: Union[str, None] = Field(default=0)
+    mobile: str = Field(..., max_length=11)  # Consider a stricter mobile validation
+    email: str
+    # status: Union[str, None] = Field(default="inactive", title="default is active")
+    businessId: list[int] = Field([], title="list of businessId")
+    # terminal: Union[str, None] = None
+    # accode: Union[str, None] = Field(default=0)
     is_admin: Union[str, None] = None
 
     @field_validator("user_name")
@@ -33,7 +34,23 @@ class UserBaseSchema(BaseModel):
             raise ValueError("Spaces are not allowed in user name")
         return v
 
-    model_config = registration_example
+    class Config:
+
+        json_schema_extra = {
+            "examples": [
+                {
+                    "user_id": "IT--000009",
+                    "user_name": "basharmd95",
+                    "mobile": "01675373799",
+                    "email": "mat197195@gmail.com",
+                    "businessId": [100001, 100005, 100000],
+                    "is_admin": "",
+                    "password": "12345678",
+                    "confirm_password": "12345678",
+
+                }
+            ]
+        }
 
 
 class UserRegistrationSchema(UserBaseSchema):
@@ -42,10 +59,8 @@ class UserRegistrationSchema(UserBaseSchema):
 
     @model_validator(mode="after")
     def check_passwords_match(self) -> Self:
-        pw1 = self.password
-        pw2 = self.confirm_password
-        if pw1 is not None and pw2 is not None and pw1 != pw2:
-            raise ValueError("passwords do not match")
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
         return self
 
     @classmethod
@@ -59,3 +74,16 @@ class UserRegistrationSchema(UserBaseSchema):
 class UserLoginSchema(BaseModel):
     username: str
     password: str
+
+
+
+class UserOutSchema(BaseModel):
+    id: int
+    username: Union[str, None]
+    email: Union[str, None]
+    status: Union[str, None]
+    mobile: Union[str, None]
+    employeeCode: Union[str, None]
+    accode: Union[str, None]
+    class Config:
+        from_attributes = True  # Allows the model to work with ORM models

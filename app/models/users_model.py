@@ -19,7 +19,8 @@ class ApiUsers(Base):
     terminal = Column(String)
     is_admin = Column(String)
     status = Column(String)
-    accode = Column(String)
+    accode = Column(String)  # This limits the column to 50 characters
+
 
 
 

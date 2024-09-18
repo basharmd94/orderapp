@@ -15,6 +15,7 @@ logger = setup_logger()
 
 class UserLoginController(DatabaseController):
     async def user_login(self, form_data: OAuth2PasswordRequestForm = Form(...)):
+        print (form_data.username)
         logged_user = (
             self.db.query(Logged).filter_by(username=form_data.username).first()
         )
@@ -70,5 +71,17 @@ class UserLoginController(DatabaseController):
 
         return {"access_token": access_token, "token_type": "bearer"}
 
+    async def user_logout_control(self, current_user_name: str):
+        logged_user = self.db.query(Logged).filter_by(username=current_user_name).first()
+        if not logged_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not logged in"
+            )
+
+        self.db.delete(logged_user)
+        self.db.commit()
+        return {"detail": "User logged out successfully"}
+        
     def verify_password(self, plain_password, hashed_password):
         return pwd_context.verify(plain_password, hashed_password)

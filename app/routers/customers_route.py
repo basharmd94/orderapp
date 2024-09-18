@@ -8,9 +8,10 @@ from utils.error import error_details
 from controllers.db_controllers.customers_db_controller import (
     CustomersDBController,
 )  # Import the controller
+from logs import setup_logger
 
 router = APIRouter()
-
+logger = setup_logger()
 
 @router.get("/all/{zid}", response_model=List[CustomersSchema])
 async def get_all_customers(
@@ -34,4 +35,5 @@ async def get_all_customers(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=error_details("No customers found"),
         )
+    # print ("customers_route /", current_user)
     return customers

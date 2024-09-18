@@ -24,6 +24,14 @@ class UserDBController(DatabaseController):
         :return: An instance of ApiUsers or None if not found.
         """
         return self.db.query(ApiUsers).filter(ApiUsers.employeeCode == user_id).first()
+    def get_all_users(self) -> list[ApiUsers]:
+        """
+        Fetch all users from the ApiUsers table.
+
+        :return: A list of ApiUsers instances.
+        """
+        return self.db.query(ApiUsers).all()
+
 
     def get_next_terminal(self) -> str:
         """
