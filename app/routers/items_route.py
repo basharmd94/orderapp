@@ -14,9 +14,6 @@ router = APIRouter()
 logger = setup_logger()
 
 
-items_db_controller = ItemsDBController()
-
-
 @router.get(
     "/all/{zid}", response_model=Union[List[ItemsSchema], List[ItemsBaseSchema]]
 )
@@ -29,13 +26,29 @@ async def get_all_items(
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
     # print(current_user.terminal)
-    current_user_acccode = current_user.accode
+    # current_user_accode = current_user.accode
     logger.info(f"get all items endpoint called: {request.url.path}")
-    print(current_user_acccode, "item_route")
+    # print(current_user_accode, "item_route")
 
+    items_db_controller = ItemsDBController()
 
-    if zid in [100000, 100001]:
-        items = items_db_controller.get_all_items(
+    # Ensure to connect to the DB session
+    await items_db_controller.connect()
+ 
+    try:
+        if zid in [100000, 100001]:
+            items = items_db_controller.get_all_items(
+                zid=zid, item_name=item, limit=limit, offset=offset
+            )
+            if not items:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_details("No items found"),
+                )
+            print(items)
+            return items
+
+        items = await items_db_controller.get_all_items_exclude_hmbr(
             zid=zid, item_name=item, limit=limit, offset=offset
         )
         if not items:
@@ -44,21 +57,12 @@ async def get_all_items(
                 detail=error_details("No items found"),
             )
         return items
-
-    items = items_db_controller.get_all_items_exclude_hmbr(
-        zid=zid, item_name=item, limit=limit, offset=offset
-    )
-    if not items:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_details("No items found"),
-        )
-    return items
-
-
+    finally:
+        await items_db_controller.close()
 
 @router.get(
-    "/items_without_auth", response_model=Union[List[ItemsSchema], List[ItemsBaseSchema]]
+    "/items_without_auth",
+    response_model=Union[List[ItemsSchema], List[ItemsBaseSchema]],
 )
 async def items_without_auth(
     request: Request,
@@ -66,30 +70,31 @@ async def items_without_auth(
     item: str = Query(..., min_length=3, description="Put Items ID or Items Name"),
     limit: int = 10,
     offset: int = 0,
-    
 ):
     """
     Route to get items without requiring authentication.
     """
     logger.info(f"get all items endpoint called: {request.url.path}")
+    items_db_controller = ItemsDBController()
 
-    if zid in [100000, 100001]:
-        items = items_db_controller.get_all_items(
-            zid=zid, item_name=item, limit=limit, offset=offset
-        )
+    await items_db_controller.connect()
+    try:
+        if zid in [100000, 100001]:
+            items = await items_db_controller.get_all_items(
+                zid=zid, item_name=item, limit=limit, offset=offset
+            )
+        else:
+            items = await items_db_controller.get_all_items_exclude_hmbr(
+                zid=zid, item_name=item, limit=limit, offset=offset
+            )
+
         if not items:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_details("No items found"),
             )
-        return items
 
-    items = items_db_controller.get_all_items_exclude_hmbr(
-        zid=zid, item_name=item, limit=limit, offset=offset
-    )
-    if not items:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_details("No items found"),
-        )
-    return items
+        return items  # Ensure that items are returned regardless of the condition
+
+    finally:
+        await items_db_controller.close()

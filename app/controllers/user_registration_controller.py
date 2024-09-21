@@ -1,5 +1,6 @@
 import traceback  # Added for detailed error logging
 from fastapi import HTTPException, status
+from sqlalchemy.future import select  # Import added
 from controllers.db_controllers.database_controller import DatabaseController
 from controllers.db_controllers.user_db_controller import UserDBController
 from schemas.user_schema import UserRegistrationSchema
@@ -10,42 +11,37 @@ from logs import setup_logger
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-
 logger = setup_logger()
 
 
 class UserRegistrationController(DatabaseController):
 
-    def check_user_id_in_prmst(self, user_id: str):
-        prmst_user = self.db.query(Prmst).filter(Prmst.xemp == user_id).first()
-        if not prmst_user:
+    async def check_user_id_in_prmst(self, user_id: str):
+        prmst_user = await self.db.execute(select(Prmst).filter(Prmst.xemp == user_id))
+        if not prmst_user.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_details("You have no ID in employee table"),
             )
 
-    def check_username_exists(self, username: str):
-        if self.db.query(ApiUsers).filter(ApiUsers.username == username).first():
+    async def check_username_exists(self, username: str):
+        if await self.db.execute(select(ApiUsers).filter(ApiUsers.username == username)):
             logger.error("User Name already registered in registration table")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_details(
-                    "User Name already registered in registration table"
-                ),
+                detail=error_details("User Name already registered in registration table"),
             )
 
-    def check_employeeCode_exist_in_apiusers(self, user_id: str):
-        if self.db.query(ApiUsers).filter(ApiUsers.employeeCode == user_id).first():
+    async def check_employeeCode_exist_in_apiusers(self, user_id: str):
+        if await self.db.execute(select(ApiUsers).filter(ApiUsers.employeeCode == user_id)):
             logger.error("Employee code already registered in registration table")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_details(
-                    "Employee code already registered in registration table"
-                ),
+                detail=error_details("Employee code already registered in registration table"),
             )
 
-    def check_email_exists(self, email: str):
-        if self.db.query(ApiUsers).filter(ApiUsers.email == email).first():
+    async def check_email_exists(self, email: str):
+        if await self.db.execute(select(ApiUsers).filter(ApiUsers.email == email)):
             logger.error("Email already registered in registration table")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -55,12 +51,12 @@ class UserRegistrationController(DatabaseController):
     def hash_password(self, password: str) -> str:
         return pwd_context.hash(password)
 
-    def register_user(self, users: UserRegistrationSchema):
+    async def register_user(self, users: UserRegistrationSchema):
         try:
-            self.check_user_id_in_prmst(users.user_id)
-            self.check_username_exists(users.user_name)
-            self.check_email_exists(users.email)
-            self.check_employeeCode_exist_in_apiusers(users.user_id)
+            await self.check_user_id_in_prmst(users.user_id)
+            await self.check_username_exists(users.user_name)
+            await self.check_email_exists(users.email)
+            await self.check_employeeCode_exist_in_apiusers(users.user_id)
 
             hashed_password = self.hash_password(users.password)
             user_data = users.dict()
@@ -79,7 +75,7 @@ class UserRegistrationController(DatabaseController):
             user_data["confirm_password"] = hashed_password
 
             database_controller = UserDBController()
-            next_terminal = database_controller.get_next_terminal()
+            next_terminal = await database_controller.get_next_terminal()
 
             new_user = ApiUsers(
                 username=users.user_name,
@@ -96,8 +92,8 @@ class UserRegistrationController(DatabaseController):
             )
 
             self.db.add(new_user)
-            self.db.commit()
-            self.db.refresh(new_user)
+            await self.db.commit()
+            await self.db.refresh(new_user)
             logger.info(f"{new_user} created successfully")
 
             return new_user

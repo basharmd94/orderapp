@@ -1,17 +1,11 @@
 from fastapi import FastAPI
 import uvicorn
-from routers import opord_route, items_route, users_route, customers_route, orders_route
+from routers import opord_route, items_route, users_route, customers_route, orders_route, test_route
 from database import engine, Base
 from fastapi.middleware.cors import CORSMiddleware
-import multiprocessing
-import uvicorn
-
-
-Base.metadata.create_all(bind=engine)  # Add bind=engine here
 
 description = """
 Mobile Order Apps for HMBR, GI Corporation & Zepto Chemicals. 🚀
-
 
 ## Users
 
@@ -22,7 +16,6 @@ You will be able to:
 
 ## Items
 You can **read items**.
-
 """
 
 tags_metadata = [
@@ -32,19 +25,14 @@ tags_metadata = [
     },
     {
         "name": "Items",
-        "description": "Get all items from all section",
-        # "externalDocs": {
-        #     "description": "Items external docs",
-        #     "url": "https://fastapi.tiangolo.com/",
-        # },
+        "description": "Get all items from all sections.",
     },
 ]
-
 
 app = FastAPI(
     title="HMBR Mobile Apps API",
     description=description,
-    summary="Api Version v1",
+    summary="API Version v1",
     version="0.0.1",
     terms_of_service="http://example.com/terms/",
     contact={
@@ -61,27 +49,21 @@ app = FastAPI(
     debug=True,
 )
 
-
-# add cors
-# origins = [
-#     "http://localhost",
-#     "http://localhost:3000",  # if you are using a different port, like 3000 for React
-#     "http://127.0.0.1",
-#     "http://127.0.0.1:3000",  # similarly, adjust for your setup
-# ]
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this to restrict origins as needed
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Include routers
 app.include_router(
     items_route.router,
     prefix="/api/v1/items",
     tags=["Items"],
-    responses={418: {"description": "Inventory, Items, Stock endpoint "}},
+    responses={418: {"description": "Inventory, Items, Stock endpoint"}},
 )
 
 app.include_router(
@@ -97,6 +79,7 @@ app.include_router(
     tags=["Customers"],
     responses={418: {"description": "Customers endpoint"}},
 )
+
 app.include_router(
     orders_route.router,
     prefix="/api/v1/order",
@@ -104,9 +87,25 @@ app.include_router(
     responses={418: {"description": "Create Order endpoint"}},
 )
 
+app.include_router(
+    test_route.router,
+    prefix="/api/v1/test",
+    tags=["Test"],
+    responses={418: {"description": "Create Test endpoint"}},
+)
 
+# Function to create tables asynchronously
+async def create_database():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
+@app.on_event("startup")
+async def startup_event():
+    await create_database()
 
-# if __name__ == "__main__":
+@app.on_event("shutdown")
+async def shutdown_event():
+    await engine.dispose()  # Dispose the engine on shutdown
 
-#     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, workers=4)
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, workers=4)

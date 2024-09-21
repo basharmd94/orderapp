@@ -1,39 +1,59 @@
 from sqlalchemy import func
+from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from models.users_model import ApiUsers
 from controllers.db_controllers.database_controller import DatabaseController
 
 class UserDBController(DatabaseController):
     """Controller for handling user-related database operations."""
-
-    def get_user_by_username(self, username: str) -> ApiUsers:
+ 
+    async def get_user_by_username(self, username: str) -> ApiUsers:
         """
         Fetch a user by their username.
 
         :param username: The username of the user.
         :return: An instance of ApiUsers or None if not found.
         """
-        return self.db.query(ApiUsers).filter(ApiUsers.username == username).first()
+        if self.db is None:
+            raise Exception("Database session not initialized.")
 
-
-    def get_user_by_id(self, user_id: str) -> ApiUsers:
+        # Construct the select query
+        query = select(ApiUsers).filter(ApiUsers.username == username)
+        
+        # Execute the query
+        result = await self.db.execute(query)
+        
+        # Return the first result or None
+        return result.scalars().first()  # Return the first result or None
+ 
+    async def get_user_by_id(self, user_id: str) -> ApiUsers:
         """
         Fetch a user by their ID.
 
         :param user_id: The ID of the user.
         :return: An instance of ApiUsers or None if not found.
         """
-        return self.db.query(ApiUsers).filter(ApiUsers.employeeCode == user_id).first()
-    def get_all_users(self) -> list[ApiUsers]:
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        # Construct the select query
+        query = select(ApiUsers).filter(ApiUsers.employeeCode == user_id)
+        
+        # Execute the query
+        result = await self.db.execute(query)
+        
+        # Return the first result or None
+        return result.scalars().first()  # Return the first result or None
+    async def get_all_users(self) -> list[ApiUsers]:
         """
         Fetch all users from the ApiUsers table.
 
         :return: A list of ApiUsers instances.
         """
-        return self.db.query(ApiUsers).all()
+        return await self.db.query(ApiUsers).all()
 
 
-    def get_next_terminal(self) -> str:
+    async def get_next_terminal(self) -> str:
         """
         Fetch the last terminal from ApiUsers, increment it by one, and return the new terminal number.
 

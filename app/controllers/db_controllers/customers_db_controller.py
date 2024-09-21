@@ -3,11 +3,7 @@ from sqlalchemy import or_
 from models.customers_model import Cacus
 from schemas.customers_schema import CustomersSchema
 from typing import List
-from database import get_db  # Import the database session provider
-
-class DatabaseController:
-    def __init__(self):
-        self.db = next(get_db())
+from controllers.db_controllers.database_controller import DatabaseController
 
 
 class CustomersDBController(DatabaseController):
@@ -23,7 +19,7 @@ class CustomersDBController(DatabaseController):
                     or_(
                         Cacus.xcus.ilike(f"%{customer}%"),
                         Cacus.xorg.ilike(f"%{customer}%"),
-                        Cacus.xcity.ilike(f"%{customer}%"),
+                        Cacus.xcity.ilike(f"%{customer}%"), 
                         Cacus.xtaxnum.ilike(f"%{customer}%"),
                         Cacus.xmobile.ilike(f"%{customer}%"),
                     )
