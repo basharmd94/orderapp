@@ -37,7 +37,7 @@ async def get_all_items(
  
     try:
         if zid in [100000, 100001]:
-            items = items_db_controller.get_all_items(
+            items = await items_db_controller.get_all_items(
                 zid=zid, item_name=item, limit=limit, offset=offset
             )
             if not items:

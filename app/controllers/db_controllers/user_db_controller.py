@@ -50,7 +50,17 @@ class UserDBController(DatabaseController):
 
         :return: A list of ApiUsers instances.
         """
-        return await self.db.query(ApiUsers).all()
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        # Construct the select query
+        query = select(ApiUsers)
+        
+        # Execute the query
+        result = await self.db.execute(query)
+        
+        # Return all results as a list
+        return result.scalars().all()  # Return all results as a list
 
 
     async def get_next_terminal(self) -> str:
@@ -59,14 +69,14 @@ class UserDBController(DatabaseController):
 
         :return: The next terminal number as a string.
         """
-        with self.db.begin_nested():  # Use begin_nested() to create a sub-transaction
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        async with self.db.begin_nested():  # Use begin_nested() to create a sub-transaction
             # Lock the table to prevent race conditions
-            last_terminal_user = (
-                self.db.query(ApiUsers)
-                .with_for_update()  # Lock the selected rows for update
-                .order_by(ApiUsers.terminal.desc())
-                .first()
-            )
+            query = select(ApiUsers).with_for_update().order_by(ApiUsers.terminal.desc())
+            result = await self.db.execute(query)
+            last_terminal_user = result.scalars().first()
 
             if last_terminal_user and last_terminal_user.terminal:
                 last_terminal = last_terminal_user.terminal
