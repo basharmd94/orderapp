@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 from models.customers_model import Cacus
 from schemas.customers_schema import CustomersSchema
 from typing import List
@@ -9,28 +9,42 @@ from controllers.db_controllers.database_controller import DatabaseController
 class CustomersDBController(DatabaseController):
     """Controller for handling customer-related database operations."""
 
-    @classmethod
-    def get_all_customers(cls, zid: int, customer: str, limit: int, offset: int) -> List[CustomersSchema]:
-        with next(get_db()) as session:  # Ensure session is managed within the method
+    async def get_all_customers(
+        self, zid: int, customer: str, limit: int, offset: int
+    ) -> List[CustomersSchema]:
+        """Get all customers based on filter criteria."""
+        
+        # Ensure the database session is initialized
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+        
+        async with self.db.begin():  # Open a transaction with the session
             try:
-                # Query to fetch customer data
-                query = session.query(Cacus).filter(
-                    Cacus.zid == zid,
-                    or_(
-                        Cacus.xcus.ilike(f"%{customer}%"),
-                        Cacus.xorg.ilike(f"%{customer}%"),
-                        Cacus.xcity.ilike(f"%{customer}%"), 
-                        Cacus.xtaxnum.ilike(f"%{customer}%"),
-                        Cacus.xmobile.ilike(f"%{customer}%"),
+                # Construct the async query
+                stmt = (
+                    select(Cacus)
+                    .filter(
+                        Cacus.zid == zid,
+                        or_(
+                            Cacus.xcus.ilike(f"%{customer}%"),
+                            Cacus.xorg.ilike(f"%{customer}%"),
+                            Cacus.xcity.ilike(f"%{customer}%"),
+                            Cacus.xtaxnum.ilike(f"%{customer}%"),
+                            Cacus.xmobile.ilike(f"%{customer}%"),
+                        ),
                     )
-                ).order_by("xcus").limit(limit).offset(offset)
+                    .order_by(Cacus.xcus)
+                    .limit(limit)
+                    .offset(offset)
+                )
 
-                # Convert the query results to list of CustomersSchema instances
-                customers = []
-                for customer in query.all():
-                    xsp_list = [customer.xsp1, customer.xsp2, customer.xsp3]  # List of xsp1, xsp2, xsp3 values
-                    xsp = [x for x in xsp_list if x]  # Remove None values
-                    customer_data = CustomersSchema(
+                # Execute the query asynchronously
+                result = await self.db.execute(stmt)
+                customers_records = result.scalars().all()
+
+                # Convert query results to list of CustomersSchema instances
+                customers = [
+                    CustomersSchema(
                         zid=customer.zid,
                         xcus=customer.xcus,
                         xorg=customer.xorg,
@@ -39,10 +53,14 @@ class CustomersDBController(DatabaseController):
                         xstate=customer.xstate,
                         xmobile=customer.xmobile,
                         xtaxnum=customer.xtaxnum,
-                        xsp=xsp,  # Assign the list of strings to xsp
+                        xsp=[x for x in [customer.xsp1, customer.xsp2, customer.xsp3] if x],
                     )
-                    customers.append(customer_data)
+                    for customer in customers_records
+                ]
+                
                 return customers
+
             except Exception as e:
-                session.rollback()
+                # Rollback the session in case of an error
+                await self.db.rollback()
                 raise e

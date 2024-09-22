@@ -80,7 +80,6 @@ class ItemsDBController(DatabaseController):
         # Execute the main query asynchronously
         result = await self.db.execute(query)
 
-        print (result)
 
         # Convert the query results to a list of ItemsSchema instances
         items = [

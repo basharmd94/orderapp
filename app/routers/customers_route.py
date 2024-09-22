@@ -29,11 +29,17 @@ async def get_all_customers(
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
 
-    customers = CustomersDBController.get_all_customers(zid, customer, limit, offset)
-    if not customers:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_details("No customers found"),
-        )
-    # print ("customers_route /", current_user)
-    return customers
+    customers_db_controller = CustomersDBController()
+    await customers_db_controller.connect()
+    
+    try:
+        customers = await customers_db_controller.get_all_customers(zid, customer, limit, offset)
+        if not customers:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_details("No customers found"),
+            )
+        # print ("customers_route /", current_user)
+        return customers
+    finally:
+        customers_db_controller.close()
