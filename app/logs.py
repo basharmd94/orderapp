@@ -14,7 +14,7 @@ def setup_logger():
         ch.setLevel(logging.INFO)
 
         # Create file handler and set level to DEBUG
-        fh = RotatingFileHandler('app.log', maxBytes=100000, backupCount=5)
+        fh = RotatingFileHandler('app.log', maxBytes=1000000, backupCount=5)
         fh.setLevel(logging.DEBUG)
 
         # Create formatter

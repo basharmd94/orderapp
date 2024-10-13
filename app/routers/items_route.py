@@ -9,6 +9,7 @@ from typing import List, Union
 from utils.error import error_details
 from typing_extensions import Annotated
 from utils.auth import get_current_user, get_current_admin, get_current_normal_user
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = setup_logger()
@@ -23,42 +24,34 @@ async def get_all_items(
     item: Annotated[str, Query(min_length=3, description="Put Items ID or Items Name")],
     limit: int = 10,
     offset: int = 0,
+    db: AsyncSession = Depends(get_db),  # Inject database session
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
-    # print(current_user.terminal)
-    # current_user_accode = current_user.accode
     logger.info(f"get all items endpoint called: {request.url.path}")
-    # print(current_user_accode, "item_route")
 
-    items_db_controller = ItemsDBController()
+    # Pass the db session to ItemsDBController
+    items_db_controller = ItemsDBController(db)
 
-    # Ensure to connect to the DB session
-    await items_db_controller.connect()
- 
-    try:
-        if zid in [100000, 100001]:
-            items = await items_db_controller.get_all_items(
-                zid=zid, item_name=item, limit=limit, offset=offset
-            )
-            if not items:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_details("No items found"),
-                )
-            print(items)
-            return items
-
-        items = await items_db_controller.get_all_items_exclude_hmbr(
-            zid=zid, item_name=item, limit=limit, offset=offset
+    # if zid in [100000, 100001]:
+    items = await items_db_controller.get_all_items(
+        zid=zid, item_name=item, limit=limit, offset=offset
+    )
+    if not items:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_details("No items found"),
         )
-        if not items:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_details("No items found"),
-            )
-        return items
-    finally:
-        await items_db_controller.close()
+    return items
+
+    # items = await items_db_controller.get_all_items_exclude_hmbr(
+    #     zid=zid, item_name=item, limit=limit, offset=offset
+    # )
+    if not items:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_details("No items found"),
+        )
+    return items
 
 @router.get(
     "/items_without_auth",

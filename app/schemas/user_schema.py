@@ -23,7 +23,7 @@ class UserBaseSchema(BaseModel):
     email: str
     # status: Union[str, None] = Field(default="inactive", title="default is active")
     businessId: list[int] = Field([], title="list of businessId")
-    # terminal: Union[str, None] = None
+    terminal: Union[str, None] = None
     # accode: Union[str, None] = Field(default=0)
     is_admin: Union[str, None] = None
 

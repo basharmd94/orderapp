@@ -1,3 +1,5 @@
+# auth.py
+import traceback
 from fastapi import HTTPException, Depends, status
 from datetime import datetime, timedelta
 from typing import Optional
@@ -7,10 +9,14 @@ from fastapi.security import OAuth2PasswordBearer
 from schemas.user_schema import UserRegistrationSchema
 from models.users_model import ApiUsers
 from controllers.db_controllers.user_db_controller import UserDBController
+from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from logs import setup_logger
 
 SECRET_KEY = "f1b2437d4edb14f189fab6821e7d8855b4e702ae169eb391232131da260a9f2b"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
+logger = setup_logger()
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/users/login")
@@ -29,6 +35,7 @@ async def create_access_token(data: dict, expires_delta: Optional[timedelta] = N
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)  # Correctly inject AsyncSession here
 ) -> UserRegistrationSchema:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -45,10 +52,9 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    database_controller = UserDBController()
-    await database_controller.connect()
-    try:
+    database_controller = UserDBController(db)  # Pass the db session here
     
+    try:
         user = await database_controller.get_user_by_username(username)
         if user is None:
             raise credentials_exception
@@ -69,20 +75,26 @@ async def get_current_user(
             accode=user.accode,
             is_admin=user.is_admin,
         )
-    finally:
-        database_controller.close()
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during get user: {str(e)}\n{traceback.format_exc()}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 async def get_current_user_with_access(
-    token: str = Depends(oauth2_scheme), is_admin: bool = False
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),  # Inject the db session correctly
+    is_admin: bool = False
 ) -> UserRegistrationSchema:
-    user = await get_current_user(token)
-    database_controller = UserDBController()
-    await database_controller.connect()
+    user = await get_current_user(token, db)  # Pass db session here
+    database_controller = UserDBController(db)
     
     try:
-
-    # Fetch the user status from the database
+        # Fetch the user status from the database
         user_db = await database_controller.get_user_by_id(user.user_id)
 
         if user_db.status != "active":
@@ -96,19 +108,25 @@ async def get_current_user_with_access(
             )
 
         return user
-
-    finally:
-        database_controller.close()
-    
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during user access check: {str(e)}\n{traceback.format_exc()}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 async def get_current_admin(
     token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),  # Inject the db session
 ) -> UserRegistrationSchema:
-    return await get_current_user_with_access(token, is_admin=True)
+    return await get_current_user_with_access(token, db, is_admin=True)
 
 
 async def get_current_normal_user(
     token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),  # Inject the db session
 ) -> UserRegistrationSchema:
-    return await get_current_user_with_access(token, is_admin=False)
+    return await get_current_user_with_access(token, db, is_admin=False)

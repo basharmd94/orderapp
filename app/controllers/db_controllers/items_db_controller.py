@@ -8,8 +8,14 @@ from typing import Union, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-class ItemsDBController(DatabaseController):
+
+class ItemsDBController:
     """Controller for handling item-related database operations."""
+
+    def __init__(self, db: AsyncSession):
+        super().__init__()
+        self.db = db  # Use the session passed in from the route handler
+
     async def get_all_items(
         self, zid: int, item_name: str, limit: int, offset: int
     ) -> List[ItemsSchema]:
@@ -17,14 +23,13 @@ class ItemsDBController(DatabaseController):
             raise Exception("Database session not initialized.")
 
         # Define the CTE for transaction summary
-        transaction_summary_query = select(
-            Imtrn.xitem,
-            func.sum(Imtrn.xqty * Imtrn.xsign).label("stock")
-        ).filter(Imtrn.zid == zid).group_by(Imtrn.xitem)
+        transaction_summary_query = (
+            select(Imtrn.xitem, func.sum(Imtrn.xqty * Imtrn.xsign).label("stock"))
+            .filter(Imtrn.zid == zid)
+            .group_by(Imtrn.xitem)
+        )
 
         transaction_summary = transaction_summary_query.cte("transaction_summary")
-
-        # The main query using the CTE
         query = (
             select(
                 Caitem.zid.label("zid"),
@@ -34,8 +39,8 @@ class ItemsDBController(DatabaseController):
                 Caitem.xstdprice.label("std_price"),
                 Caitem.xunitstk.label("stock_unit"),
                 transaction_summary.c.stock,
-                coalesce(Opspprc.xqty, 0).label("min_disc_qty"),
-                coalesce(Opspprc.xdisc, 0).label("disc_amt"),
+                func.coalesce(func.min(Opspprc.xqty), 0).label("min_disc_qty"),
+                func.coalesce(func.min(Opspprc.xdisc), 0).label("disc_amt"),
             )
             .join(transaction_summary, Caitem.xitem == transaction_summary.c.xitem)
             .outerjoin(
@@ -45,9 +50,10 @@ class ItemsDBController(DatabaseController):
                 Caitem.zid == zid,
                 transaction_summary.c.stock > 0,
                 or_(
-                    Caitem.xdesc.ilike(f"%{item_name}%"),
-                    Caitem.xitem.like(f"%{item_name}%"),
-                    Caitem.xgitem.ilike(f"%{item_name}%"),
+                    Caitem.xdesc.ilike(f"%{item_name}%"),  # Dynamic item_name
+                    Caitem.xdesc.ilike(f"%{item_name}%"),  # Dynamic item_name
+                    Caitem.xitem.ilike(f"%{item_name}%"),  # Dynamic item_name
+                    Caitem.xgitem.ilike(f"%{item_name}%"),  # Dynamic item_name
                 ),
                 Caitem.xgitem.notin_(
                     [
@@ -58,6 +64,9 @@ class ItemsDBController(DatabaseController):
                         "Maintenance Item",
                         "Marketing & Advertisement",
                         "Packaging Item",
+                        "Zepto Raw Metrial",
+                        "RAW Material PL",
+                        "RAW Material CH"
                     ]
                 ),
             )
@@ -69,17 +78,13 @@ class ItemsDBController(DatabaseController):
                 Caitem.xstdprice,
                 Caitem.xunitstk,
                 transaction_summary.c.stock,
-                Opspprc.xqty,
-                Opspprc.xdisc,
             )
             .order_by(Caitem.xitem)
-            .limit(limit)
-            .offset(offset)
+            .limit(limit)  # Dynamic limit
+            .offset(offset)  # Dynamic offset
         )
-
         # Execute the main query asynchronously
         result = await self.db.execute(query)
-
 
         # Convert the query results to a list of ItemsSchema instances
         items = [
@@ -96,7 +101,7 @@ class ItemsDBController(DatabaseController):
             for item in result.fetchall()  # Use fetchall to get the full result
         ]
         return items
-        
+
     async def get_all_items_exclude_hmbr(
         self, zid: int, item_name: str, limit: int, offset: int
     ) -> List[ItemsBaseSchema]:
@@ -104,10 +109,11 @@ class ItemsDBController(DatabaseController):
             raise Exception("Database session not initialized.")
 
         # Define the CTE for transaction summary
-        transaction_summary_query = select(
-            Imtrn.xitem,
-            func.sum(Imtrn.xqty * Imtrn.xsign).label("stock")
-        ).filter(Imtrn.zid == zid).group_by(Imtrn.xitem)
+        transaction_summary_query = (
+            select(Imtrn.xitem, func.sum(Imtrn.xqty * Imtrn.xsign).label("stock"))
+            .filter(Imtrn.zid == zid)
+            .group_by(Imtrn.xitem)
+        )
 
         transaction_summary = transaction_summary_query.cte("transaction_summary")
 
@@ -131,7 +137,7 @@ class ItemsDBController(DatabaseController):
                 transaction_summary.c.stock > 0,
                 or_(
                     Caitem.xdesc.ilike(f"%{item_name}%"),
-                    Caitem.xitem.like(f"%{item_name}%"),
+                    Caitem.xitem.ilike(f"%{item_name}%"),
                     Caitem.xgitem.ilike(f"%{item_name}%"),
                 ),
                 Caitem.xgitem.notin_(
@@ -143,6 +149,9 @@ class ItemsDBController(DatabaseController):
                         "Maintenance Item",
                         "Marketing & Advertisement",
                         "Packaging Item",
+                        "Zepto Raw Metrial",
+                        "RAW Material PL",
+                        "RAW Material CH"
                     ]
                 ),
             )
@@ -176,4 +185,3 @@ class ItemsDBController(DatabaseController):
             for item in result.fetchall()  # Use fetchall to get the full result
         ]
         return items
-

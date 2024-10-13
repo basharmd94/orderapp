@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
-from routers import opord_route, items_route, users_route, customers_route, orders_route, test_route
+from routers import opord_route, items_route, users_route, customers_route, orders_route, test_route, test_post_route
 from database import engine, Base
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -92,6 +92,12 @@ app.include_router(
     prefix="/api/v1/test",
     tags=["Test"],
     responses={418: {"description": "Create Test endpoint"}},
+)
+app.include_router(
+    test_post_route.router,
+    prefix="/api/v1/testpost",
+    tags=["Test POST"],
+    responses={418: {"description": "Create Test POST endpoint"}},
 )
 
 # Function to create tables asynchronously

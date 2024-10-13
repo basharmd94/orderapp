@@ -17,3 +17,4 @@ class Cacus(Base):
     xsp1 = Column(String, index=True)
     xsp2 = Column(String, index=True)
     xsp3 = Column(String, index=True)
+ 

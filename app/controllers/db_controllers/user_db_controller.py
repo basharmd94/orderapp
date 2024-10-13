@@ -3,8 +3,13 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from models.users_model import ApiUsers
 from controllers.db_controllers.database_controller import DatabaseController
+from sqlalchemy.ext.asyncio import AsyncSession
 
-class UserDBController(DatabaseController):
+class UserDBController:
+
+    def __init__(self, db: AsyncSession):
+        self.db = db  # Use the session passed in from the route handler
+
     """Controller for handling user-related database operations."""
  
     async def get_user_by_username(self, username: str) -> ApiUsers:

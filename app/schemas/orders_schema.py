@@ -7,8 +7,6 @@ class Item(BaseModel):
     xdesc: str
     xqty: int
     xprice: int
-    # xstatusord: Union[str, None] = Field(default=None)
-    # xordernum: Union[str, None] = Field(default=None)
     xroword: int
     # xterminal: str
     xdate: str
@@ -16,11 +14,7 @@ class Item(BaseModel):
     xlat: Union[float, None] = Field(default=None)
     xlong: Union[float, None] = Field(default=None)
     xlinetotal: int
-    # xtra1: Union[int, None] = Field(default=None)
-    # xtra2: float
-    # xtra3: Union[str, None] = Field(default=None)
-    # xtra4: Union[str, None] = Field(default=None)
-    # xtra5: Union[str, None] = Field(default=None)
+
 
 
 class OpmobSchema(BaseModel):
@@ -32,3 +26,5 @@ class OpmobSchema(BaseModel):
     xcusname: str
     xcusadd: str
     items: List[Item]
+
+
