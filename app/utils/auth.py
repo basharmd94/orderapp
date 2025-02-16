@@ -130,3 +130,4 @@ async def get_current_normal_user(
     db: AsyncSession = Depends(get_db),  # Inject the db session
 ) -> UserRegistrationSchema:
     return await get_current_user_with_access(token, db, is_admin=False)
+    

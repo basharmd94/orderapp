@@ -161,15 +161,17 @@ class UserRegistrationController:
             user_db = UserDBController(self.db)
             next_terminal = await self.user_db_controller.get_next_terminal()
 
+            print (users, "HERE IS BUSINESS ID")
+
             new_user = ApiUsers(
-                username=users.user_name,
+                username=users.user_name, 
                 password=hashed_password,
                 employee_name=users.user_name,
                 email=users.email,
                 mobile=users.mobile,
                 status="inactive",
                 businessId=next(iter(business_ids)),
-                employeeCode=users.user_id,
+                employeeCode=users.user_id.upper(),
                 terminal=next_terminal,  # Update as needed based on your logic
                 is_admin="admin" if user_data.get("is_admin", "").lower() == "admin" else "user",
                 accode=accode,

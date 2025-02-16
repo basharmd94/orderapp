@@ -21,7 +21,7 @@ logger = setup_logger()
 async def get_all_items(
     request: Request,
     zid: int,
-    item: Annotated[str, Query(min_length=3, description="Put Items ID or Items Name")],
+    item: Annotated[str, Query( description="Put Items ID or Items Name")],
     limit: int = 10,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),  # Inject database session
@@ -91,3 +91,23 @@ async def items_without_auth(
 
     finally:
         await items_db_controller.close()
+
+
+
+order = {
+  "xcus": "string",
+  "items": [
+    {
+      "xitem": "string",
+      "xdesc": "string",
+      "xqty": 0,
+      "xprice": 0,
+      "xroword": 0,
+      "xdate": "string",
+      "xsl": "string",
+      "xlat": 0,
+      "xlong": 0,
+      "xlinetotal": 0
+    }
+  ]
+}

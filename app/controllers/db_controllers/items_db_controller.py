@@ -8,7 +8,7 @@ from typing import Union, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-
+ 
 class ItemsDBController:
     """Controller for handling item-related database operations."""
 
@@ -136,9 +136,10 @@ class ItemsDBController:
                 Caitem.zid == zid,
                 transaction_summary.c.stock > 0,
                 or_(
-                    Caitem.xdesc.ilike(f"%{item_name}%"),
-                    Caitem.xitem.ilike(f"%{item_name}%"),
-                    Caitem.xgitem.ilike(f"%{item_name}%"),
+
+                    Caitem.xdesc.ilike(f"%{item_name}%"),  # Dynamic item_name
+                    Caitem.xitem.ilike(f"%{item_name}%"),  # Dynamic item_name
+                    Caitem.xgitem.ilike(f"%{item_name}%"),  # Dynamic item_name
                 ),
                 Caitem.xgitem.notin_(
                     [

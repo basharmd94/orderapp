@@ -29,17 +29,24 @@ async def get_all_customers(
             description="Put Customers ID, Customers Name or Area like CUS-001202 ",
         ),
     ],
+    employee_id : Annotated[
+        str,
+        Query(
+            min_length=3,
+            description="Put Employee ID, like SA--000015 ",
+        ),
+    ] ,
     limit: int = 10,
     offset: int = 0,
-    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
     db: AsyncSession = Depends(get_db),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
 
     customers_db_controller = CustomersDBController(db)
 
     try:
         customers = await customers_db_controller.get_all_customers(
-            zid, customer, limit, offset
+            zid, customer, employee_id, limit, offset, current_user
         )
         if not customers:
             raise HTTPException(
@@ -53,8 +60,11 @@ async def get_all_customers(
         logger.error(f"Error getting Customer route: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error creating order: {e}")
-        raise HTTPException(status_code=500, detail="Error creating order")
+        logger.error(f"No Customer Found: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"No Customer Found for {employee_id}",
+        )
         print(traceback.format_exc())
 
 
@@ -68,12 +78,17 @@ async def get_all_customers(
 async def get_all_customers(
     request: Request,
     zid: int,
-    area_name: Annotated[str, Query(min_length=3, description="Put Customers ID", ), ],
-    xsp: Annotated[Union[str, None], Query(min_length=3) ] = None,
-    xsp1: Annotated[Union[str, None], Query(min_length=3) ] = None,
-    xsp2: Annotated[Union[str, None], Query(min_length=3) ] = None,
-    xsp3: Annotated[Union[str, None], Query(min_length=3) ] = None,
-
+    area_name: Annotated[
+        str,
+        Query(
+            min_length=3,
+            description="Put Customers ID",
+        ),
+    ],
+    xsp: Annotated[Union[str, None], Query(min_length=3)] = None,
+    xsp1: Annotated[Union[str, None], Query(min_length=3)] = None,
+    xsp2: Annotated[Union[str, None], Query(min_length=3)] = None,
+    xsp3: Annotated[Union[str, None], Query(min_length=3)] = None,
     current_user: UserRegistrationSchema = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -101,8 +116,6 @@ async def get_all_customers(
         print(traceback.format_exc())
 
 
-
-
 @router.get("/all-wo-auth/{zid}", response_model=List[CustomersSchema])
 async def get_all_customers(
     request: Request,
@@ -127,14 +140,14 @@ async def get_all_customers(
         if not customers:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No customers found for the query: '{customer}'. Please check your input."
+                detail=f"No customers found for the query: '{customer}'. Please check your input.",
             )
         return customers
 
     except ValueError as e:
         logger.error(f"Value error in get_all_customers: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
-    
+
     except HTTPException as http_err:
         # Re-raise HTTP exceptions to preserve original details
         logger.error(f"HTTP error in get_all_customers: {http_err.detail}")
@@ -142,4 +155,7 @@ async def get_all_customers(
 
     except Exception as e:
         logger.error(f"Unexpected error in get_all_customers: {e}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving customers. Please try again later.")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while retrieving customers. Please try again later.",
+        )
