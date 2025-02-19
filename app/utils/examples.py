@@ -7,7 +7,7 @@ registration_example = {
                 "mobile": "01675373799",
                 "email": "mat197195@gmail.com",
                 "status": "active",
-                "businessId": [100001, 100005, 100000],
+                "businessId": 100001,
                 "accode": "0",
                 "is_admin": "",
                 "password": "12345678",

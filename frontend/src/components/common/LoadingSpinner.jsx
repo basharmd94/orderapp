@@ -2,62 +2,25 @@ import React from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 
-const LoadingSpinner = ({ message = 'Loading...' }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
+const LoadingSpinner = ({ message = 'Loading items...' }) => (
+  <Box
+    display="flex"
+    flexDirection="column"
+    alignItems="center"
+    justifyContent="center"
+    py={4}
   >
-    <Box
-      display="flex"
-      flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
-      minHeight="100vh"
-      sx={{
-        background: '#f5f5f5',
-        position: 'relative',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          background: 'linear-gradient(45deg, #42a5f515, #ba68c815)',
-          borderRadius: '0 0 0 100%',
-          width: '40%',
-          height: '40%',
-        },
-        '&::after': {
-          content: '""',
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          background: 'linear-gradient(45deg, #42a5f515, #ba68c815)',
-          borderRadius: '0 100% 0 0',
-          width: '40%',
-          height: '40%',
-        }
-      }}
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
     >
-      <CircularProgress
-        size={60}
-        thickness={4}
-        sx={{
-          color: 'primary.main',
-          mb: 2,
-        }}
-      />
-      <Typography
-        variant="h6"
-        sx={{
-          color: 'text.primary',
-          fontWeight: 500
-        }}
-      >
+      <CircularProgress size={40} thickness={4} sx={{ mb: 2 }} />
+      <Typography variant="body2" color="text.secondary">
         {message}
       </Typography>
-    </Box>
-  </motion.div>
+    </motion.div>
+  </Box>
 );
 
 export default LoadingSpinner;

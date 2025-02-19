@@ -5,7 +5,7 @@ const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const apiClient = axios.create({
     baseURL,
     headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json'
     },
 });
 
@@ -17,9 +17,11 @@ apiClient.interceptors.request.use(
             config.headers.Authorization = `Bearer ${token}`;
         }
         
-        // Ensure content type is set for form data
-        if (config.method === 'post' && config.data instanceof URLSearchParams) {
+        // Set content type based on data type
+        if (config.data instanceof URLSearchParams) {
             config.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        } else {
+            config.headers['Content-Type'] = 'application/json';
         }
         
         return config;

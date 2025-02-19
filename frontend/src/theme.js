@@ -4,9 +4,9 @@ export const theme = createTheme({
   palette: {
     primary: {
       main: '#1976d2',
-      light: '#e3f2fd',
+      light: 'rgba(25, 118, 210, 0.12)',
       dark: '#1565c0',
-      lighter: '#f5f5f5',
+      lighter: 'rgba(25, 118, 210, 0.04)',
       contrastText: '#fff',
     },
     secondary: {
@@ -188,5 +188,45 @@ export const theme = createTheme({
         },
       },
     },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          '&.Mui-focusVisible': {
+            outline: 'none',
+            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+          },
+        },
+      },
+    },
+    MuiFab: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+          '&.scroll-top-button': {
+            background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+            color: '#fff',
+            '&:hover': {
+              background: 'linear-gradient(45deg, #1565c0, #1976d2)',
+              transform: 'translateY(-4px)',
+              boxShadow: '0 12px 20px rgba(0,0,0,0.2)',
+            },
+          },
+          '&.MuiFab-primary': {
+            background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+            '&:hover': {
+              background: 'linear-gradient(45deg, #1565c0, #1976d2)',
+            },
+          },
+        },
+      },
+    },
+  },
+  zIndex: {
+    scrollTop: 2000,
+    modal: 1300,
+    drawer: 1200,
+    appBar: 1100,
   },
 });
+
+export default theme;

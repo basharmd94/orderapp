@@ -4,6 +4,11 @@ from sqlalchemy.orm import Session
 from models.users_model import ApiUsers
 from controllers.db_controllers.database_controller import DatabaseController
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update, delete
+from logs import setup_logger
+from fastapi import HTTPException, status
+
+logger = setup_logger()
 
 class UserDBController:
 
@@ -19,17 +24,25 @@ class UserDBController:
         :param username: The username of the user.
         :return: An instance of ApiUsers or None if not found.
         """
-        if self.db is None:
-            raise Exception("Database session not initialized.")
-
-        # Construct the select query
-        query = select(ApiUsers).filter(ApiUsers.username == username)
-        
-        # Execute the query
-        result = await self.db.execute(query)
-        
-        # Return the first result or None
-        return result.scalars().first()  # Return the first result or None
+        try:
+            result = await self.db.execute(
+                select(ApiUsers).filter(ApiUsers.username == username)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User {username} not found"
+                )
+                
+            # Ensure boolean conversion for is_admin
+            user.is_admin = bool(user.is_admin) if user.is_admin is not None else False
+            
+            return user
+        except Exception as e:
+            logger.error(f"Error retrieving user {username}: {str(e)}")
+            raise
  
     async def get_user_by_id(self, user_id: str) -> ApiUsers:
         """
@@ -96,5 +109,58 @@ class UserDBController:
                 new_terminal = "T0001"
 
         return new_terminal
+
+    async def create_user(self, user_data: dict) -> ApiUsers:
+        """Create a new user"""
+        try:
+            user = ApiUsers(**user_data)
+            self.db.add(user)
+            await self.db.commit()
+            await self.db.refresh(user)
+            return user
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error creating user: {str(e)}")
+            raise
+
+    async def update_user(self, username: str, user_data: dict) -> ApiUsers:
+        """Update user data"""
+        try:
+            result = await self.db.execute(
+                update(ApiUsers)
+                .where(ApiUsers.username == username)
+                .values(**user_data)
+                .returning(ApiUsers)
+            )
+            user = result.scalar_one_or_none()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User {username} not found"
+                )
+            await self.db.commit()
+            return user
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error updating user {username}: {str(e)}")
+            raise
+
+    async def delete_user(self, username: str) -> bool:
+        """Delete a user"""
+        try:
+            result = await self.db.execute(
+                delete(ApiUsers).where(ApiUsers.username == username)
+            )
+            await self.db.commit()
+            if result.rowcount == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User {username} not found"
+                )
+            return True
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error deleting user {username}: {str(e)}")
+            raise
 
 

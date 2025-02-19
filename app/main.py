@@ -1,9 +1,13 @@
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import uvicorn
 from typing import List
 import logging
+import os
+from dotenv import load_dotenv
+import json
+import traceback
 
 # Local imports
 from routers import (
@@ -20,6 +24,31 @@ from logs import setup_logger
 
 # Configure logging
 logger = setup_logger()
+
+# Load environment variables
+load_dotenv()
+
+def validate_env_vars():
+    # Required environment variables with their validation functions
+    required_env_vars = {
+        "SECRET_KEY": lambda x: len(x) >= 32,  # At least 32 chars for security
+        "ALGORITHM": lambda x: x in ["HS256", "HS384", "HS512"],  # Only allow HMAC-SHA algorithms
+        "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 5 <= int(x) <= 60,  # Between 5-60 minutes
+        "REFRESH_TOKEN_EXPIRE_DAYS": lambda x: x.isdigit() and 1 <= int(x) <= 30,  # Between 1-30 days
+        "DATABASE_URL": lambda x: x.startswith(("postgresql+asyncpg://", "postgresql://")),
+        "MAX_LOGIN_ATTEMPTS": lambda x: x.isdigit() and 1 <= int(x) <= 10,
+        "LOCKOUT_TIME_SECONDS": lambda x: x.isdigit() and 60 <= int(x) <= 3600,
+    }
+
+    for var_name, validator in required_env_vars.items():
+        value = os.getenv(var_name)
+        if not value:
+            raise ValueError(f"Required environment variable {var_name} is not set!")
+        if not validator(value):
+            raise ValueError(f"Environment variable {var_name} has invalid value: {value}")
+
+# Validate environment variables at startup
+validate_env_vars()
 
 # API Metadata
 API_VERSION = "v1"
@@ -127,6 +156,43 @@ async def global_exception_handler(request: Request, exc: Exception):
             "type": "internal_error"
         }
     )
+
+@app.middleware("http")
+async def debug_request_middleware(request: Request, call_next):
+    # Log request details
+    logger.debug(f"Request path: {request.url.path}")
+    logger.debug(f"Request method: {request.method}")
+    
+    # Only log request body for specific endpoints that might handle is_admin
+    if request.url.path.endswith(("/login", "/logout", "/registration")):
+        try:
+            body = await request.body()
+            if body:
+                body_str = body.decode()
+                logger.debug(f"Request body: {body_str}")
+                # Check for boolean values in the request
+                if '"is_admin":' in body_str and ('true' in body_str.lower() or 'false' in body_str.lower()):
+                    logger.warning(f"Found boolean is_admin in request body for {request.url.path}")
+        except Exception as e:
+            logger.error(f"Error reading request body: {str(e)}")
+
+    response = await call_next(request)
+
+    # Log response details for errors
+    if response.status_code >= 400:
+        logger.error(f"Error response status: {response.status_code}")
+        try:
+            response_body = b""
+            async for chunk in response.body_iterator:
+                response_body += chunk
+            logger.error(f"Error response body: {response_body.decode()}")
+            # Reconstruct response since we consumed the body iterator
+            return Response(content=response_body, status_code=response.status_code, 
+                          headers=dict(response.headers))
+        except Exception as e:
+            logger.error(f"Error reading response body: {str(e)}")
+
+    return response
 
 # Health check endpoint
 @app.get(
@@ -252,7 +318,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8050,
+        port=8000,
         reload=True,
         workers=4,
         log_level="info"

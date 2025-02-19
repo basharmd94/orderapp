@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from controllers.db_controllers.user_db_controller import UserDBController
-from schemas.user_schema import UserRegistrationSchema
+from schemas.user_schema import UserRegistrationSchema, UserRegistrationResponse
 from models.users_model import Prmst, ApiUsers
 from utils.error import error_details
 from logs import setup_logger
@@ -135,19 +135,19 @@ class UserRegistrationController:
             user_data = users.dict()
             logger.debug(f"User data before processing: {user_data}")
 
-            business_ids = set(user_data.get("businessId", []))
+            business_id = user_data.get("businessId")
             accode = ""
-            if 100000 in business_ids:
-                accode += "a"
-            if 100001 in business_ids:
-                accode += "b"
-            if 100005 in business_ids:
-                accode += "c"
+            if (business_id == 100000):
+                accode = "a"
+            elif (business_id == 100001):
+                accode = "b"
+            elif (business_id == 100005):
+                accode = "c"
             user_data["accode"] = accode
             logger.debug(f"Generated Accode: '{accode}'")
 
-            if not business_ids:
-                error_msg = "At least one business ID must be provided"
+            if not business_id:
+                error_msg = "Business ID must be provided"
                 logger.error(error_msg)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -170,10 +170,10 @@ class UserRegistrationController:
                 email=users.email,
                 mobile=users.mobile,
                 status="inactive",
-                businessId=next(iter(business_ids)),
+                businessId=business_id,
                 employeeCode=users.user_id.upper(),
-                terminal=next_terminal,  # Update as needed based on your logic
-                is_admin="admin" if user_data.get("is_admin", "").lower() == "admin" else "user",
+                terminal=next_terminal,
+                is_admin="user",  # Changed to directly use the string value
                 accode=accode,
             )
             logger.debug(f"Creating new user instance: {new_user}")
@@ -183,7 +183,8 @@ class UserRegistrationController:
             await self.db.commit()  # Commit the transaction
             logger.debug("Database commit successful.")
 
-            return new_user
+            # Return filtered response without sensitive data
+            return UserRegistrationResponse.model_validate(new_user)
         except HTTPException:
             raise
         except Exception as e:
