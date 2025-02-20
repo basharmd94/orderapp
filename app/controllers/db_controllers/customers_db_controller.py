@@ -78,7 +78,10 @@ class CustomersDBController:
                 xstate=customer.xstate,
                 xmobile=customer.xmobile,
                 xtaxnum=customer.xtaxnum,
-                xsp=[customer.xsp, customer.xsp1, customer.xsp2, customer.xsp3],
+                xsp=customer.xsp,
+                xsp1=customer.xsp1,
+                xsp2=customer.xsp2,
+                xsp3=customer.xsp3,
             )
             for customer in customers_records
         ]

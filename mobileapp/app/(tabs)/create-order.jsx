@@ -55,7 +55,11 @@ export default function CreateOrder() {
   const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
   const [hasMoreItems, setHasMoreItems] = useState(true);
 
-  const zids = [100000, 100001, 100005];
+  const zids = {
+    'GI Corp': '100000',
+    'HMBR': '100001', 
+    'Zepto': '100005'
+  };
   const LIMIT = 10;
 
   // Load cart items from storage on mount
@@ -509,21 +513,21 @@ export default function CreateOrder() {
             </Button>
           </DrawerHeader>
           <DrawerBody>
-            <ScrollView className="flex-1 px-4 py-2">
+            <ScrollView className="flex-1 w-full">
               <VStack space="3">
-                {zids.map((id) => (
+              {Object.entries(zids).map(([name, id]) => (
                   <Button
                     key={id}
                     variant="link"
                     onPress={() => handleZidSelect(id)}
-                    className="w-full p-0 m-0"
+                    className="w-full h-[full] p-0 m-0"
                   >
-                    <Card className="w-full w-full bg-white border-0 shadow-sm hover:bg-gray-50 active:bg-gray-50">
-                      <Box className="p-3">
-                        <HStack space="2" alignItems="center">
-                          <Text className="text-sm font-medium text-gray-900">ZID:</Text>
-                          <Text className="text-[11px] px-2 py-1 bg-primary-50 text-primary-700 rounded-full">{id}</Text>
-                        </HStack>
+                    <Card className="w-full  mt-3 bg-white border-0 shadow-sm hover:bg-gray-50 active:bg-gray-50">
+                      <Box className="p-1 ">
+
+                          <Text className="text-[11px] px-2 py-1 bg-primary-50 text-primary-700 rounded-full w-12">{id}</Text>
+                          <Text className="text-[15px] px-2 py-1 bg-primary-5 text-primary-800 text-lg text-lg bold italic">{name}</Text>
+
                       </Box>
                     </Card>
                   </Button>
@@ -545,7 +549,7 @@ export default function CreateOrder() {
         <DrawerContent className="bg-gray-50">
           <DrawerHeader className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
             <VStack>
-              <Text className="text-xs text-gray-500 uppercase tracking-wider">Selected Business</Text>
+              <Text className="text-xs text-gray-500 uppercase tracking-wider">Select  Customer for</Text>
               <Heading size="lg" className="text-primary-900">ZID {zid}</Heading>
             </VStack>
             <Button
