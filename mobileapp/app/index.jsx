@@ -30,44 +30,48 @@ const index = () => {
         <Box className="justify-center h-80">
 
     </Box>
+    <Center>
 
     <Grid
       className="gap-5"
       _extra={{
-        className: "grid-cols-8",
+        className: "grid-cols-12",
       }}
     >
       <GridItem
-        className="bg-background-50 p-6 rounded-md"
+        className="bg-warning-500 p-6 rounded-md"
         _extra={{
           className: "col-span-3",
         }}
       />
       <GridItem
-        className="bg-background-50 p-6 rounded-md"
+        className="bg-warning-500 p-6 rounded-md"
         _extra={{
           className: "col-span-5",
         }}
       />
       <GridItem
-        className="bg-background-50 p-6 rounded-md"
+        className="bg-warning-500 p-6 rounded-md"
         _extra={{
           className: "col-span-6",
         }}
       />
       <GridItem
-        className="bg-background-50 p-6 rounded-md"
+        className="bg-warning-500 p-6 rounded-md"
+
         _extra={{
           className: "col-span-4",
         }}
       />
       <GridItem
-        className="bg-background-50 p-6 rounded-md"
+        className="bg-warning-500 p-6 rounded-md"
         _extra={{
           className: "col-span-4",
         }}
       />
     </Grid>
+    </Center>
+      <Box><Text>Hello world</Text></Box>
       </Center>
     </SafeAreaView>
   );

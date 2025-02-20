@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { 
@@ -18,26 +18,41 @@ import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { InputField, InputSlot, InputIcon } from '@/components/ui/input';
 import { EyeIcon, EyeOffIcon, LogInIcon } from 'lucide-react-native';
-
-
-
+import { Alert, AlertText, AlertIcon } from '@/components/ui/alert';
+import { InfoIcon } from '@/components/ui/icon';
+import { useAuth } from '@/context/AuthContext';
 
 const SignIn = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login } = useAuth();
 
   const handleLogin = async () => {
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log('Login attempted with:', email);
-    setIsLoading(false);
-    router.replace('/home')
+    if (!username || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError('');
+      await login(username, password);
+    } catch (err) {
+      // Handle validation errors
+      if (err.response?.data?.detail && Array.isArray(err.response.data.detail)) {
+        // Join multiple validation errors into a single message
+        setError(err.response.data.detail.map(e => e.msg).join(', '));
+      } else {
+        setError(err.response?.data?.detail || 'Login failed. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const isFormValid = email.length > 0 && password.length > 0;
+  const isFormValid = username.length > 0 && password.length > 0;
 
   return (
     <SafeAreaView className="flex-1 bg-gray-100">
@@ -55,19 +70,28 @@ const SignIn = () => {
               </Center>
             </Animated.View>
 
+            {error && (
+              <Animated.View entering={FadeInDown.duration(1000).springify()}>
+                <Alert action="error" variant="solid" mb="$3">
+                  <AlertIcon as={InfoIcon} />
+                  <AlertText>{error}</AlertText>
+                </Alert>
+              </Animated.View>
+            )}
+
             <Animated.View entering={FadeInUp.delay(400).duration(1000).springify()}>
               <FormControl className="mb-4">
                 <FormControlLabel>
-                  <FormControlLabelText className="text-gray-400">Email</FormControlLabelText>
+                  <FormControlLabelText className="text-gray-400">Username</FormControlLabelText>
                 </FormControlLabel>
                 <Input
                   variant="outline"
                   size="xl"
                 >
                   <InputField
-                    placeholder="Enter your email"
-                    value={email}
-                    onChangeText={setEmail}
+                    placeholder="Enter your username"
+                    value={username}
+                    onChangeText={setUsername}
                     className="text-primary-400"
                     placeholderTextColor="gray-100"
                   />

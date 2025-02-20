@@ -9,38 +9,45 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { config } from '@gluestack-ui/config';
+import { router } from 'expo-router';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+function ProtectedRoute() {
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/sign-in');
+    }
+  }, [user, loading]);
+
+  return null;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  // const [loaded] = useFonts({
-  //   SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  // });
-
-  // useEffect(() => {
-  //   if (loaded) {
-  //     SplashScreen.hideAsync();
-  //   }
-  // }, [loaded]);
-
-  // if (!loaded) {
-  //   return null;
-  // }
 
   return (
-    <GluestackUIProvider mode="light"><ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-        <Stack.Screen name='index' options={{ headerShown: false }} />
-          <Stack.Screen name='(auth)' options={{ headerShown: false }} />
-          <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
-          <Stack.Screen name='(screens)' options={{ headerShown: false }} />
-          <Stack.Screen name='(query)' options={{ headerShown: false }} />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+    <GluestackUIProvider config={config}>
+      <AuthProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name='index' options={{ headerShown: false }} />
+            <Stack.Screen name='(auth)' options={{ headerShown: false }} />
+            <Stack.Screen name='(screens)' options={{ headerShown: false }} />
+            <Stack.Screen name='(query)' options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <ProtectedRoute />
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </AuthProvider>
     </GluestackUIProvider>
   );
 }
