@@ -100,10 +100,18 @@ async def logout(
 @router.post("/refresh-token")
 async def refresh_token(
     request: Request,
-    refresh_token: str,
+    refresh_token: str = None,  # Make refresh_token optional in route signature
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        # Get refresh token from query params
+        refresh_token = request.query_params.get('refresh_token')
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="refresh_token query parameter is required"
+            )
+
         # Check if token is blacklisted
         if await is_token_blacklisted(db, refresh_token):
             raise HTTPException(

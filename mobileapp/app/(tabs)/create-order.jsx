@@ -618,43 +618,49 @@ export default function CreateOrder() {
                 </Box>
               ) : (
                 <VStack space="4" className="py-3 pb-20 min-h-screen">
-                  {customers.map((cust) => (
-                    <Button
-                      key={cust.xcus}
-                      variant="link"
-                      onPress={() => handleCustomerSelect(cust)}
-                      className="w-full p-0 m-0"
-                    >
-                      <Card className="w-full bg-white border-0 shadow-sm active:bg-gray-50/80 hover:border hover:border-primary-100 rounded-2xl overflow-hidden transition-all duration-200">
-                        <Box className="p-5">
-                          <VStack space="6">
-                            <Box className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-                              <HStack space="3" alignItems="center">
-                                <Box className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
-                                  <Text className="text-xs font-semibold text-blue-700 tracking-wider">{cust.xcus}</Text>
-                                </Box>
-                                <Box className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-1.5">
-                                  <Text className="text-xs font-semibold text-emerald-700 tracking-wider">{cust.xcity}</Text>
-                                </Box>
-                              </HStack>
-                            </Box>
+{customers.map((cust) => (
+  <Box key={cust.xcus} className="w-full min-h-[140px]">
+    <Button
+      variant="link"
+      onPress={() => handleCustomerSelect(cust)}
+      className="w-full p-0 m-0"
+    >
+      <Card className="w-full bg-white border-0 shadow-sm active:bg-gray-50/80 hover:border hover:border-primary-100 rounded-xl transition-all duration-200">
+        <Box className="p-1">
+          <VStack space="1">
+            {/* Customer ID Badge */}
+            <Box className="bg-gray-50 rounded-lg px-2 py-0.5 border border-gray-100">
+              <Box className="bg-blue-50 border border-blue-100 self-start rounded-md px-1.5 py-0.5">
+                <Text className="text-[9px] font-semibold text-blue-700 tracking-wider">{cust.xcus}</Text>
+              </Box>
+            </Box>
 
-                            <VStack space="4">
-                              <VStack space="1">
-                                <Text className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Customer Name</Text>
-                                <Text className="text-base font-semibold text-gray-800 leading-snug">{cust.xorg}</Text>
-                              </VStack>
+            <VStack space="1">
+              {/* Customer Name */}
+              <VStack space="0">
+                <Text className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">Customer Name</Text>
+                <Text className="text-xs font-semibold text-gray-800 leading-snug">{cust.xorg}</Text>
+              </VStack>
 
-                              <VStack space="1">
-                                <Text className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Location</Text>
-                                <Text className="text-sm text-gray-600 leading-relaxed">{cust.xadd1}</Text>
-                              </VStack>
-                            </VStack>
-                          </VStack>
-                        </Box>
-                      </Card>
-                    </Button>
-                  ))}
+              {/* City & Address */}
+              <Box className="bg-gray-50 rounded-lg px-2 py-0.5 border border-gray-100">
+                <HStack space="2" alignItems="center" justifyContent="space-between">
+                  <Box className="bg-emerald-50 border border-emerald-100 rounded-md px-1.5 py-0.5">
+                    <Text className="text-[10px] font-bold text-emerald-800">{cust.xcity}</Text>
+                  </Box>
+                  <Box className="bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5">
+                    <Text className="text-[9px] font-medium text-amber-700">{cust.xadd1}</Text>
+                  </Box>
+                </HStack>
+              </Box>
+            </VStack>
+          </VStack>
+        </Box>
+      </Card>
+    </Button>
+  </Box>
+))}
+
                   {loadingMoreCustomers && (
                     <Box className="py-6 flex items-center justify-center">
                       <HStack space="sm" alignItems="center" className="bg-white/80 px-4 py-2 rounded-full shadow-sm">
