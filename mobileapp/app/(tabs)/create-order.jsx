@@ -1,33 +1,25 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
-import { Text } from "@/components/ui/text";
-import { Heading } from "@/components/ui/heading";
 import { ScrollView } from "react-native";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
-import { Input, InputField, InputIcon, InputSlot } from "@/components/ui/input";
-import { Button, ButtonIcon, ButtonText } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Divider } from "@/components/ui/divider";
-import { Spinner } from "@/components/ui/spinner";
-import {
-  Drawer,
-  DrawerBackdrop,
-  DrawerContent,
-  DrawerHeader,
-  DrawerBody,
-  DrawerFooter
-} from "@/components/ui/drawer";
-
-
+import BusinessSelector from "@/components/create-order/BusinessSelector";
+import CustomerSelector from "@/components/create-order/CustomerSelector";
+import ItemSelector from "@/components/create-order/ItemSelector";
+import QuantityInput from "@/components/create-order/QuantityInput";
+import CartList from "@/components/create-order/CartList";
 import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect, useCallback } from "react";
-import { ChevronDown, Search, ShoppingCart, Trash2, X } from "lucide-react-native";
+import { useState, useEffect, useRef, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "@/lib/api";
+import { Fab, FabLabel, FabIcon } from "@/components/ui/fab";
+import { Plus, ShoppingCart } from "lucide-react-native";
+import { Spinner } from "@/components/ui/spinner";
+import { useOrderStore } from "@/stores/orderStore";
 
 export default function CreateOrder() {
   const { user } = useAuth();
+  const { loadOrders } = useOrderStore();
   const [zid, setZid] = useState("");
   const [customer, setCustomer] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -36,16 +28,15 @@ export default function CreateOrder() {
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState(0);
   const [quantity, setQuantity] = useState("");
+  const [cartItems, setCartItems] = useState([]);
 
   const [showZidSheet, setShowZidSheet] = useState(false);
   const [showCustomerSheet, setShowCustomerSheet] = useState(false);
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [customerSearchText, setCustomerSearchText] = useState("");
   const [itemSearchText, setItemSearchText] = useState("");
-
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
-  const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [customerOffset, setCustomerOffset] = useState(0);
@@ -54,28 +45,44 @@ export default function CreateOrder() {
   const [loadingMoreItems, setLoadingMoreItems] = useState(false);
   const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
   const [hasMoreItems, setHasMoreItems] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  
+  const LIMIT = 100;
+  const searchSequence = useRef(0);
+  const itemSearchSequence = useRef(0);
+  const searchDebounceRef = useRef(null);
+  const itemSearchDebounceRef = useRef(null);
+  const activeSearchRef = useRef(false);
+  const searchTimeoutRef = useRef(null);
+  const lastSearchRef = useRef('');
+  const SEARCH_DELAY = 500; // 500ms delay between searches
+  const abortControllerRef = useRef(null);
+  const INITIAL_SEARCH_DELAY = 800; // Longer delay for initial search
+  const TYPING_DELAY = 500; // Medium delay while typing
+  const LOAD_MORE_DELAY = 300; // Short delay for loading more
 
-  const zids = {
-    'GI Corp': '100000',
-    'HMBR': '100001', 
-    'Zepto': '100005'
-  };
-  const LIMIT = 10;
-
-  // Load cart items from storage on mount
   useEffect(() => {
     loadCartItems();
   }, []);
 
-  // Reset pagination when search text changes
   useEffect(() => {
+    searchSequence.current = 0;
     setCustomerOffset(0);
     setHasMoreCustomers(true);
+    if (customerSearchText.length < 1) { // Changed from 3 to 1
+      setCustomers([]);
+      setHasMoreCustomers(false);
+    }
   }, [customerSearchText]);
 
   useEffect(() => {
+    itemSearchSequence.current = 0;
     setItemOffset(0);
     setHasMoreItems(true);
+    if (itemSearchText.length < 3) {
+      setItems([]);
+      setHasMoreItems(false);
+    }
   }, [itemSearchText]);
 
   const loadCartItems = async () => {
@@ -89,6 +96,7 @@ export default function CreateOrder() {
           setCustomer(cart.xcus);
           setCustomerName(cart.xcusname);
           setCustomerAddress(cart.xcusadd);
+          
         }
       }
     } catch (error) {
@@ -96,82 +104,10 @@ export default function CreateOrder() {
     }
   };
 
-  const searchCustomers = async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 3) return;
-    try {
-      if (!isLoadingMore) {
-        setLoading(true);
-      }
-      const offset = isLoadingMore ? customerOffset + LIMIT : 0;
-      const response = await api.get(
-        `/customers/all/${zid}?customer=${searchText}&employee_id=${user.user_id}&limit=${LIMIT}&offset=${offset}`
-      );
-      const newCustomers = response.data || [];
-      if (!isLoadingMore) {
-        setCustomers(newCustomers);
-      } else {
-        setCustomers([...customers, ...newCustomers]);
-      }
-      setHasMoreCustomers(newCustomers.length === LIMIT);
-      setCustomerOffset(offset);
-    } catch (error) {
-      console.error("Error searching customers:", error);
-      if (!isLoadingMore) {
-        setCustomers([]);
-      }
-    } finally {
-      setLoading(false);
-      setLoadingMoreCustomers(false);
-    }
-  };
-
-  const searchItems = async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 3) return;
-    try {
-      if (!isLoadingMore) {
-        setItemsLoading(true);
-      }
-      const offset = isLoadingMore ? itemOffset + LIMIT : 0;
-      const response = await api.get(
-        `/items/all/${zid}?item_name=${searchText}&limit=${LIMIT}&offset=${offset}`
-      );
-      const newItems = response.data || [];
-      if (!isLoadingMore) {
-        setItems(newItems);
-      } else {
-        setItems([...items, ...newItems]);
-      }
-      setHasMoreItems(newItems.length === LIMIT);
-      setItemOffset(offset);
-    } catch (error) {
-      console.error("Error searching items:", error);
-      if (!isLoadingMore) {
-        setItems([]);
-      }
-    } finally {
-      setItemsLoading(false);
-      setLoadingMoreItems(false);
-    }
-  };
-
-  const handleLoadMoreCustomers = () => {
-    if (!loadingMoreCustomers && hasMoreCustomers && customerSearchText.length >= 3) {
-      setLoadingMoreCustomers(true);
-      searchCustomers(customerSearchText, true);
-    }
-  };
-
-  const handleLoadMoreItems = () => {
-    if (!loadingMoreItems && hasMoreItems && itemSearchText.length >= 3) {
-      setLoadingMoreItems(true);
-      searchItems(itemSearchText, true);
-    }
-  };
-
   const handleZidSelect = (selectedZid) => {
     setZid(selectedZid);
     setShowZidSheet(false);
-    // Reset customer and item when ZID changes
+    // Reset when ZID changes
     setCustomer("");
     setCustomerName("");
     setCustomerAddress("");
@@ -179,7 +115,6 @@ export default function CreateOrder() {
     setItemName("");
     setItemPrice(0);
     setQuantity("");
-    // Clear cart if ZID changes
     setCartItems([]);
     AsyncStorage.removeItem("cartItem");
   };
@@ -214,25 +149,21 @@ export default function CreateOrder() {
       xlinetotal: parseInt(quantity) * itemPrice
     };
 
-    // Check if item already exists
-    const existingItemIndex = cartItems.findIndex(i => i.xitem === item);
     let updatedItems;
+    const existingItemIndex = cartItems.findIndex(i => i.xitem === item);
 
     if (existingItemIndex >= 0) {
-      // Update existing item
       updatedItems = cartItems.map((item, index) =>
         index === existingItemIndex ? { ...item, xqty: parseInt(quantity), xlinetotal: parseInt(quantity) * itemPrice } : item
       );
     } else {
-      // Add new item
       updatedItems = [...cartItems, newItem];
     }
 
     setCartItems(updatedItems);
 
-    // Save to AsyncStorage
     const cartData = {
-      zid: zid,
+      zid,
       xcus: customer,
       xcusname: customerName,
       xcusadd: customerAddress,
@@ -256,9 +187,8 @@ export default function CreateOrder() {
     const updatedItems = cartItems.filter(item => item.xitem !== itemToRemove.xitem);
     setCartItems(updatedItems);
 
-    // Update AsyncStorage
     const cartData = {
-      zid: zid,
+      zid,
       xcus: customer,
       xcusname: customerName,
       xcusadd: customerAddress,
@@ -280,12 +210,12 @@ export default function CreateOrder() {
     if (!cartItems.length) return;
 
     try {
-      // Save to orders in AsyncStorage
+      setSubmitting(true);
       const existingOrders = await AsyncStorage.getItem("orders");
       const orders = existingOrders ? JSON.parse(existingOrders) : { orders: [] };
-
+      
       orders.orders.push({
-        zid: zid,
+        zid,
         xcus: customer,
         xcusname: customerName,
         xcusadd: customerAddress,
@@ -293,522 +223,307 @@ export default function CreateOrder() {
       });
 
       await AsyncStorage.setItem("orders", JSON.stringify(orders));
-
-      // Clear cart
       await AsyncStorage.removeItem("cartItem");
+      await loadOrders(); // Load orders in the store after adding new order
+      
+      // Reset state
       setCartItems([]);
       setZid("");
       setCustomer("");
       setCustomerName("");
       setCustomerAddress("");
-
     } catch (error) {
       console.error("Error saving order:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const calculateTotal = () => {
-    return cartItems.reduce((sum, item) => sum + item.xlinetotal, 0);
+  const searchCustomers = useCallback(async (searchText, isLoadingMore = false) => {
+    if (!zid || searchText.length < 1 || !user) { // Changed from 3 to 1
+      setCustomers([]);
+      return;
+    }
+    
+    try {
+      if (!isLoadingMore) {
+        setLoading(true);
+        setCustomerOffset(0);
+      } else {
+        setLoadingMoreCustomers(true);
+      }
+      
+      const offset = isLoadingMore ? customerOffset : 0;
+      await new Promise(resolve => setTimeout(resolve, 300)); // Add small delay
+
+      const response = await api.get(
+        `/customers/all/${zid}?customer=${searchText}&employee_id=${user?.user_id || ''}&limit=${LIMIT}&offset=${offset}`
+      );
+      
+      const newCustomers = response.data || [];
+      
+      if (!isLoadingMore) {
+        setCustomers(newCustomers);
+      } else {
+        setCustomers(prev => {
+          const existingIds = new Set(prev.map(c => c.xcus));
+          const uniqueNewCustomers = newCustomers.filter(c => !existingIds.has(c.xcus));
+          return [...prev, ...uniqueNewCustomers];
+        });
+      }
+      
+      setHasMoreCustomers(newCustomers.length === LIMIT);
+      setCustomerOffset(offset + (newCustomers.length === LIMIT ? LIMIT : 0));
+      
+    } catch (error) {
+      console.error("Error searching customers:", error);
+      if (!isLoadingMore) {
+        setCustomers([]);
+      }
+      setHasMoreCustomers(false);
+    } finally {
+      setLoading(false);
+      setLoadingMoreCustomers(false);
+    }
+  }, [zid, user]);
+
+  // Add effect to clear search results when user is not available
+  useEffect(() => {
+    if (!user) {
+      setCustomers([]);
+      setHasMoreCustomers(false);
+      setCustomerOffset(0);
+    }
+  }, [user]);
+
+  const handleCustomerSearch = useCallback((text) => {
+    setCustomerSearchText(text);
+    
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (text.length >= 1) { // Changed from 3 to 1
+      searchDebounceRef.current = setTimeout(() => {
+        searchCustomers(text);
+      }, 500);
+    } else {
+      setCustomers([]);
+      setHasMoreCustomers(false);
+    }
+  }, [searchCustomers]);
+
+  const handleLoadMoreCustomers = useCallback(() => {
+    if (!loadingMoreCustomers && hasMoreCustomers && customerSearchText.length >= 1) { // Changed from 3 to 1
+      searchCustomers(customerSearchText, true);
+    }
+  }, [loadingMoreCustomers, hasMoreCustomers, customerSearchText, searchCustomers]);
+
+  // Similar updates for item search
+  const searchItems = async (searchText, isLoadingMore = false) => {
+    if (!zid || searchText.length < 1) { // Changed from 3 to 1
+      setItems([]);
+      setHasMoreItems(false);
+      return;
+    }
+    
+    try {
+      const currentSequence = ++itemSearchSequence.current;
+      
+      if (!isLoadingMore) {
+        setItemsLoading(true);
+        setItemOffset(0);
+        setItems([]);
+      } else if (loadingMoreItems) {
+        return;
+      } else {
+        setLoadingMoreItems(true);
+      }
+      
+      const offset = isLoadingMore ? itemOffset : 0;
+      const response = await api.get(
+        `/items/all/${zid}?item_name=${searchText}&limit=${LIMIT}&offset=${offset}`
+      );
+
+      if (currentSequence !== itemSearchSequence.current) {
+        return;
+      }
+      
+      const newItems = response.data || [];
+      
+      if (!isLoadingMore) {
+        setItems(newItems);
+      } else {
+        const existingIds = new Set(items.map(item => item.item_id));
+        const uniqueNewItems = newItems.filter(item => !existingIds.has(item.item_id));
+        if (uniqueNewItems.length > 0) {
+          setItems(prev => [...prev, ...uniqueNewItems]);
+        }
+      }
+      
+      setHasMoreItems(newItems.length === LIMIT);
+      if (newItems.length === LIMIT) {
+        setItemOffset(offset + LIMIT);
+      } else {
+        setHasMoreItems(false);
+      }
+    } catch (error) {
+      console.error("Error searching items:", error);
+      if (!isLoadingMore) {
+        setItems([]);
+      }
+      setHasMoreItems(false);
+    } finally {
+      setItemsLoading(false);
+      setLoadingMoreItems(false);
+    }
   };
 
+  const handleItemSearch = (text) => {
+    setItemSearchText(text);
+    if (text.length >= 1) { // Changed from 3 to 1
+      // Use timeout for all searches
+      const timeoutId = setTimeout(() => {
+        searchItems(text);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      setItems([]);
+      setHasMoreItems(false);
+    }
+  };
+
+  const handleLoadMoreItems = () => {
+    if (!loadingMoreItems && hasMoreItems && itemSearchText.length >= 1) { // Changed from 3 to 1
+      searchItems(itemSearchText, true);
+    }
+  };
+
+  // Cleanup timeouts
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      if (itemSearchDebounceRef.current) clearTimeout(itemSearchDebounceRef.current);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
+  // Reset search state when component unmounts or zid changes
+  useEffect(() => {
+    lastSearchRef.current = '';
+    setCustomers([]);
+    setHasMoreCustomers(false);
+    setCustomerOffset(0);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+  }, [zid]);
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView>
-        <Box className="p-4">
-          
-
-          <VStack space="lg">
-            {/* ZID Selection */}
-            <Box>
-              <Text className="text-gray-600 mb-2">Business ZID</Text>
-              <Button
-                variant="outline"
-                className="w-full"
-                onPress={() => setShowZidSheet(true)}
+    <Box className="flex-1 bg-gray-50">
+      <SafeAreaView className="flex-1 ">
+        <ScrollView>
+          <Box className="p-4">
+            <VStack space="lg">
+              <BusinessSelector
+                zid={zid}
+                onZidSelect={handleZidSelect}
                 disabled={cartItems.length > 0}
-              >
-                <ButtonText>{zid || "Select ZID"}</ButtonText>
-                <ButtonIcon as={ChevronDown} />
-              </Button>
-            </Box>
+                showZidSheet={showZidSheet}
+                setShowZidSheet={setShowZidSheet}
+              />
 
-            {/* Customer Selection */}
-            <Box>
-              <Text className="text-gray-600 mb-2">Customer</Text>
-              <Button
-                variant="outline"
-                className="w-full"
-                onPress={() => setShowCustomerSheet(true)}
+              <CustomerSelector
+                zid={zid}
+                customer={customer}
+                customerName={customerName}
                 disabled={!zid || cartItems.length > 0}
-              >
-                <ButtonText>{customerName || "Select Customer"}</ButtonText>
-                <ButtonIcon as={ChevronDown} />
-              </Button>
-            </Box>
+                showCustomerSheet={showCustomerSheet}
+                setShowCustomerSheet={setShowCustomerSheet}
+                onCustomerSelect={handleCustomerSelect}
+                customers={customers}
+                loading={loading}
+                loadingMore={loadingMoreCustomers}
+                hasMore={hasMoreCustomers}
+                searchText={customerSearchText}
+                setSearchText={handleCustomerSearch}
+                onLoadMore={handleLoadMoreCustomers}
+              />
 
-            {/* Item Selection */}
-            <Box>
-              <Text className="text-gray-600 mb-2">Item</Text>
-              <Button
-                variant="outline"
-                className="w-full"
-                onPress={() => setShowItemSheet(true)}
+              <ItemSelector
+                zid={zid}
+                itemName={itemName}
                 disabled={!zid || !customer}
-              >
-                <ButtonText>{itemName || "Select Item"}</ButtonText>
-                <ButtonIcon as={ChevronDown} />
-              </Button>
-            </Box>
+                showItemSheet={showItemSheet}
+                setShowItemSheet={setShowItemSheet}
+                onItemSelect={handleItemSelect}
+                items={items}
+                loading={itemsLoading}
+                loadingMore={loadingMoreItems}
+                hasMore={hasMoreItems}
+                searchText={itemSearchText}
+                setSearchText={handleItemSearch}
+                onLoadMore={handleLoadMoreItems}
+              />
 
-            {/* Quantity Input */}
-            <Box>
-              <Text className="text-gray-600 mb-2">Quantity</Text>
-              <Input size="xl">
-                <InputField
-                  placeholder="Enter quantity"
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  keyboardType="numeric"
-                  disabled={!zid || !customer || !item}
-                />
-              </Input>
-            </Box>
+              <QuantityInput
+                quantity={quantity}
+                setQuantity={setQuantity}
+                disabled={!zid || !customer || !item}
+              />
 
-            {/* Add to Cart Button */}
-            <Button
+              <CartList
+                cartItems={cartItems}
+                customerName={customerName}
+                onRemoveItem={removeFromCart}
+              />
+              
+              {/* Add padding at bottom to ensure content is visible above FABs */}
+              <Box className="h-16" />
+            </VStack>
+          </Box>
+        </ScrollView>
+
+        {/* FABs */}
+        <Box className="absolute bottom-0 left-0 right-0 flex-row justify-between z-50">
+          {/* Show Add to Cart FAB only when item and quantity are selected */}
+          {(!!item && !!quantity) && (
+            <Fab
+              size="sm"
+              placement="bottom left"
               onPress={addToCart}
-              disabled={!zid || !customer || !item || !quantity}
-              className="w-full"
+              isDisabled={!zid || !customer}
+              className="bg-amber-500 shadow-lg active:scale-95 hover:bg-amber-600 min-w-[140px]"
+              m={6}
             >
-              <ButtonIcon as={ShoppingCart} />
-              <ButtonText>Add to Cart</ButtonText>
-            </Button>
+              <ShoppingCart size={16} className = "text-white text-bold"/>
+              <FabLabel className="text-white text-sm font-medium">Add to Cart</FabLabel>
+            </Fab>
+          )}
 
-            {/* Cart Items */}
-            {cartItems.length > 0 && (
-              <Card className="w-full mt-4 overflow-hidden border-lg shadow-lg">
-                <VStack space="md">
-                  {/* Enhanced Cart Header */}
-                  <Box className="px-6 py-4 bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg">
-                    <HStack space="3" alignItems="center">
-                      <Text className="text-lg font-semibold text-white truncate">
-                        {customerName.length > 25 ? customerName.substring(0, 25) + "..." : customerName}
-                      </Text>
-                    </HStack>
-                  </Box>
-
-                  {/* Refined Cart Items */}
-                  <VStack space="0" className="px-3 py-3 bg-gray-50/50">
-                    {cartItems.map((item, index) => (
-                      <Box key={item.xsl} className="group overflow-visible">
-                        {index > 0 && <Divider className="my-2 opacity-20" />}
-                        <HStack
-                          justifyContent="space-between"
-                          alignItems="center"
-                          className="p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <VStack space="2" flex={1}>
-                            
-                            <Text className="text-xs font-bold text-gray-600 italic">
-                              Code: {item.xitem}
-                            </Text>
-                            <Text className="text-base font-semibold text-gray-900">
-                              {item.xdesc.length > 30 ? item.xdesc.substring(0, 30) + "..." : item.xdesc}
-                            </Text>
-                            <HStack space="3" alignItems="center">
-                              <Box className="bg-primary-50/80 px-2.5 py-1 rounded-full">
-                                <Text className="text-xs font-medium text-primary-800">
-                                  Qty: {item.xqty}
-                                </Text>
-                              </Box>
-                              <Text className="text-gray-400">•</Text>
-                              <Box className="bg-green-50 px-2.5 py-1 rounded-full">
-                                <Text className="text-xs font-medium text-green-800">
-                                  ৳{item.xprice}
-                                </Text>
-                              </Box>
-                              <Text className="text-gray-400">→</Text>
-                              <Box className="bg-purple-50 px-2.5 py-1 rounded-full">
-                                <Text className="text-xs font-bold text-purple-900">
-                                  ৳{item.xlinetotal}
-                                </Text>
-                              </Box>
-                            </HStack>
-                          </VStack>
-
-                          {/* Align delete button to the right without gray background */}
-                          <Button
-                            variant="ghost"
-                            action="error"
-
-                            onPress={() => removeFromCart(item)}
-                            className="opacity-80 hover:opacity-100 active:scale-95 transition-all ml-auto border-none bg-primary-50/0 group-hover:bg-primary-50/20"
-                          >
-                            <ButtonIcon as={Trash2} size="md" className="text-red-600" />
-                          </Button>
-                        </HStack>
-                      </Box>
-                    ))}
-                  </VStack>
-
-                  {/* Improved Cart Footer */}
-                  <Box className="px-3 py-3 bg-gradient-to-r from-gray-100 to-gray-300 border-t border-gray-200 rounded-lg">
-                    <HStack justifyContent="space-between" alignItems="center">
-                      <VStack space="1">
-
-                        <Box className="bg-primary-50/80 px-2.5 py-1 rounded-full">
-                          <Text className="text-xs font-medium text-primary-800">
-                            {cartItems.length} {cartItems.length === 1 ? 'Item' : 'Items'}
-                          </Text>
-                        </Box>
-                        <Text className="text-xs font-medium text-gray-600">
-                          Total Amount
-                        </Text>
-                        <Text className="text-xl font-extrabold text-gray-900">
-                          ৳{calculateTotal()}
-                        </Text>
-
-                      </VStack>
-
-                    </HStack>
-                  </Box>
-                </VStack>
-              </Card>
-            )}
-
-            {/* Add Order Button */}
-            {cartItems.length > 0 && (
-              <Button
-                size="lg"
-                className="w-full mt-4"
-                onPress={addOrder}
-              >
-                <ButtonText>Add Order</ButtonText>
-              </Button>
-            )}
-          </VStack>
-        </Box>
-      </ScrollView>
-
-      {/* ZID Selection Drawer */}
-      <Drawer
-        isOpen={showZidSheet}
-        onClose={() => setShowZidSheet(false)}
-        size="full"
-        anchor="bottom"
-      >
-        <DrawerBackdrop />
-        <DrawerContent className="bg-gray-50">
-          <DrawerHeader className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-            <VStack>
-              <Text className="text-xs text-gray-500 uppercase tracking-wider">Select Business</Text>
-              <Heading size="lg" className="text-primary-900">Available ZIDs</Heading>
-            </VStack>
-            <Button
-              variant="link"
-              onPress={() => setShowZidSheet(false)}
-              className="p-2"
+          {cartItems.length > 0 && (
+            <Fab
+              size="sm"
+              placement="bottom right"
+              onPress={addOrder}
+              isDisabled={submitting}
+              className="bg-emerald-500 shadow-lg active:scale-95 hover:bg-emerald-600 min-w-[140px]"
+              m={6}
             >
-              <ButtonIcon as={X} size="lg" className="text-gray-400" />
-            </Button>
-          </DrawerHeader>
-          <DrawerBody>
-            <ScrollView className="flex-1 w-full">
-              <VStack space="3">
-              {Object.entries(zids).map(([name, id]) => (
-                  <Button
-                    key={id}
-                    variant="link"
-                    onPress={() => handleZidSelect(id)}
-                    className="w-full h-[full] p-0 m-0"
-                  >
-                    <Card className="w-full  mt-3 bg-white border-0 shadow-sm hover:bg-gray-50 active:bg-gray-50">
-                      <Box className="p-1 ">
-
-                          <Text className="text-[11px] px-2 py-1 bg-primary-50 text-primary-700 rounded-full w-12">{id}</Text>
-                          <Text className="text-[15px] px-2 py-1 bg-primary-5 text-primary-800 text-lg text-lg bold italic">{name}</Text>
-
-                      </Box>
-                    </Card>
-                  </Button>
-                ))}
-              </VStack>
-            </ScrollView>
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
-
-      {/* Customer Selection Drawer */}
-      <Drawer
-        isOpen={showCustomerSheet}
-        onClose={() => setShowCustomerSheet(false)}
-        size="full"
-        anchor="bottom"
-      >
-        <DrawerBackdrop />
-        <DrawerContent className="bg-gray-50">
-          <DrawerHeader className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-            <VStack>
-              <Text className="text-xs text-gray-500 uppercase tracking-wider">Select  Customer for</Text>
-              <Heading size="lg" className="text-primary-900">ZID {zid}</Heading>
-            </VStack>
-            <Button
-              variant="link"
-              onPress={() => setShowCustomerSheet(false)}
-              className="p-2"
-            >
-              <ButtonIcon as={X} size="lg" className="text-gray-400" />
-            </Button>
-          </DrawerHeader>
-          <DrawerBody>
-            {/* Sticky Search Box with Frosted Glass Effect */}
-            <Box className="sticky top-0 z-10">
-              <Box className="backdrop-blur-lg bg-white/90 px-4 py-3 shadow-sm border-b border-gray-100">
-                <Input
-                  size="md"
-                  className="bg-gray-50/80 border border-gray-100 rounded-xl"
-                >
-                  <InputField
-                    placeholder="Search customers..."
-                    value={customerSearchText}
-                    onChangeText={(text) => {
-                      setCustomerSearchText(text);
-                      if (text.length >= 3) {
-                        searchCustomers(text);
-                      } else {
-                        setCustomers([]);
-                      }
-                    }}
-                    className="text-sm"
-                  />
-                  <InputSlot px="$3">
-                    <InputIcon as={Search} size={18} className="text-gray-400" />
-                  </InputSlot>
-                </Input>
-              </Box>
-            </Box>
-
-            {/* Content with Elegant Cards */}
-            <ScrollView
-              className="flex-1 px-4"
-              onScroll={({ nativeEvent }) => {
-                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-                const paddingToBottom = 20;
-                if (layoutMeasurement.height + contentOffset.y >=
-                  contentSize.height - paddingToBottom) {
-                  handleLoadMoreCustomers();
-                }
-              }}
-              scrollEventThrottle={400}
-            >
-              {loading ? (
-                <Box className="py-8 flex items-center justify-center">
-                  <HStack space="sm" alignItems="center">
-                    <Spinner size="small" color="$primary500" />
-                    <Text size="sm" className="text-gray-600 font-medium">Searching customers...</Text>
-                  </HStack>
-                </Box>
-              ) : customers.length === 0 ? (
-                <Box className="py-8">
-                  <Text className="text-center text-sm text-gray-500">
-                    {customerSearchText.length < 3
-                      ? "Type at least 3 characters to search"
-                      : "No customers found"}
-                  </Text>
-                </Box>
-              ) : (
-                <VStack space="4" className="py-3 pb-20 min-h-screen">
-{customers.map((cust) => (
-  <Box key={cust.xcus} className="w-full min-h-[140px]">
-    <Button
-      variant="link"
-      onPress={() => handleCustomerSelect(cust)}
-      className="w-full p-0 m-0"
-    >
-      <Card className="w-full bg-white border-0 shadow-sm active:bg-gray-50/80 hover:border hover:border-primary-100 rounded-xl transition-all duration-200">
-        <Box className="p-1">
-          <VStack space="1">
-            {/* Customer ID Badge */}
-            <Box className="bg-gray-50 rounded-lg px-2 py-0.5 border border-gray-100">
-              <Box className="bg-blue-50 border border-blue-100 self-start rounded-md px-1.5 py-0.5">
-                <Text className="text-[9px] font-semibold text-blue-700 tracking-wider">{cust.xcus}</Text>
-              </Box>
-            </Box>
-
-            <VStack space="1">
-              {/* Customer Name */}
-              <VStack space="0">
-                <Text className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">Customer Name</Text>
-                <Text className="text-xs font-semibold text-gray-800 leading-snug">{cust.xorg}</Text>
-              </VStack>
-
-              {/* City & Address */}
-              <Box className="bg-gray-50 rounded-lg px-2 py-0.5 border border-gray-100">
-                <HStack space="2" alignItems="center" justifyContent="space-between">
-                  <Box className="bg-emerald-50 border border-emerald-100 rounded-md px-1.5 py-0.5">
-                    <Text className="text-[10px] font-bold text-emerald-800">{cust.xcity}</Text>
-                  </Box>
-                  <Box className="bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5">
-                    <Text className="text-[9px] font-medium text-amber-700">{cust.xadd1}</Text>
-                  </Box>
+              {submitting ? (
+                <HStack space="sm" alignItems="center" justifyContent="center" className="w-full">
+                  <Spinner size="small" color="$white" />
+                  <FabLabel className="text-white text-sm font-medium">Adding...</FabLabel>
                 </HStack>
-              </Box>
-            </VStack>
-          </VStack>
-        </Box>
-      </Card>
-    </Button>
-  </Box>
-))}
-
-                  {loadingMoreCustomers && (
-                    <Box className="py-6 flex items-center justify-center">
-                      <HStack space="sm" alignItems="center" className="bg-white/80 px-4 py-2 rounded-full shadow-sm">
-                        <Spinner size="small" color="$primary500" />
-                        <Text size="xs" className="text-gray-600 font-medium">Loading more...</Text>
-                      </HStack>
-                    </Box>
-                  )}
-                </VStack>
-              )}
-            </ScrollView>
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
-
-      {/* Item Selection Drawer */}
-      <Drawer
-        isOpen={showItemSheet}
-        onClose={() => setShowItemSheet(false)}
-        size="full"
-        anchor="bottom"
-      >
-        <DrawerBackdrop />
-        <DrawerContent className="bg-gray-50">
-          <DrawerHeader className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-            <VStack>
-              <Text className="text-xs text-gray-500 uppercase tracking-wider">Selected Business</Text>
-              <Heading size="lg" className="text-primary-900">ZID {zid}</Heading>
-            </VStack>
-            <Button
-              variant="link"
-              onPress={() => setShowItemSheet(false)}
-              className="p-2"
-            >
-              <ButtonIcon as={X} size="lg" className="text-gray-400" />
-            </Button>
-          </DrawerHeader>
-          <DrawerBody>
-            {/* Sticky Search Box with Frosted Glass Effect */}
-            <Box className="sticky top-0 z-10">
-              <Box className="backdrop-blur-lg bg-white/90 px-4 py-3 shadow-sm border-b border-gray-100">
-                <Input
-                  size="md"
-                  className="bg-gray-50/80 border border-gray-100 rounded-xl"
-                >
-                  <InputField
-                    placeholder="Search items..."
-                    value={itemSearchText}
-                    onChangeText={(text) => {
-                      setItemSearchText(text);
-                      if (text.length >= 3) {
-                        searchItems(text);
-                      } else {
-                        setItems([]);
-                      }
-                    }}
-                    className="text-sm"
-                  />
-                  <InputSlot px="$3">
-                    <InputIcon as={Search} size={18} className="text-gray-400" />
-                  </InputSlot>
-                </Input>
-              </Box>
-            </Box>
-
-            {/* Content with Elegant Cards */}
-            <ScrollView
-              className="flex-1 px-4"
-              onScroll={({ nativeEvent }) => {
-                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-                const paddingToBottom = 20;
-                if (layoutMeasurement.height + contentOffset.y >=
-                  contentSize.height - paddingToBottom) {
-                  handleLoadMoreItems();
-                }
-              }}
-              scrollEventThrottle={400}
-            >
-              {itemsLoading ? (
-                <Box className="py-8 flex items-center justify-center">
-                  <HStack space="sm" alignItems="center">
-                    <Spinner size="small" color="$primary500" />
-                    <Text size="sm" className="text-gray-600 font-medium">Searching items...</Text>
-                  </HStack>
-                </Box>
-              ) : items.length === 0 ? (
-                <Box className="py-8">
-                  <Text className="text-center text-sm text-gray-500">
-                    {itemSearchText.length < 3
-                      ? "Type at least 3 characters to search"
-                      : "No items found"}
-                  </Text>
-                </Box>
               ) : (
-                <VStack space="4" className="py-2 pb-20 w-full my-[40px]">
-                  {items.map((itm) => (
-                    <Box key={itm.item_id} className="w-full min-h-[140px]">
-                      <Button
-                        variant="link"
-                        onPress={() => handleItemSelect(itm)}
-                        className="w-full p-0 m-0"
-                      >
-                        <Card className="w-full bg-white border-0 shadow-sm active:bg-gray-50/80 hover:border hover:border-primary-100 rounded-xl transition-all duration-200">
-                          <Box className="p-1">
-                            <VStack space="1">
-                              <Box className="bg-gray-50 rounded-lg px-2 py-0.5 border border-gray-100">
-                                <Box className="bg-blue-50 border border-blue-100 self-start rounded-md px-1.5 py-0.5">
-                                  <Text className="text-[9px] font-semibold text-blue-700 tracking-wider">{itm.item_id}</Text>
-                                </Box>
-                              </Box>
-
-                              <VStack space="1">
-                                <VStack space="0">
-                                  <Text className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">Item Name</Text>
-                                  <Text className="text-xs font-semibold text-gray-800 leading-snug">{itm.item_name}</Text>
-                                </VStack>
-
-                                <Box className="bg-gray-50 rounded-lg px-2 py-0.5 border border-gray-100">
-                                  <HStack space="2" alignItems="center" justifyContent="space-between">
-                                    <Box className="bg-primary-100 border border-tertiary-800 rounded-md px-1.5 py-0.5">
-                                      <Text className="text-[10px] font-bold text-primary-800">৳{itm.std_price}</Text>
-                                    </Box>
-                                    <Box className="bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5">
-                                      <Text className="text-[9px] font-medium text-amber-700">Stock: {itm.stock || 0}</Text>
-                                    </Box>
-                                  </HStack>
-                                </Box>
-                              </VStack>
-                            </VStack>
-                          </Box>
-                        </Card>
-                      </Button>
-                    </Box>
-                  ))}
-                  {loadingMoreItems && (
-                    <Box className="py-2 flex items-center justify-center">
-                      <HStack space="sm" alignItems="center" className="bg-white/80 px-2 py-1 rounded-full shadow-sm">
-                        <Spinner size="small" color="$primary500" />
-                        <Text size="xs" className="text-gray-600 font-medium">Loading more...</Text>
-                      </HStack>
-                    </Box>
-                  )}
-                </VStack>
+                <>
+                  <Plus size={16} className = "text-white text-bold"/>
+                  <FabLabel className="text-white text-sm font-medium">Add Order</FabLabel>
+                </>
               )}
-            </ScrollView>
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
-    </SafeAreaView>
+            </Fab>
+          )}
+        </Box>
+      </SafeAreaView>
+    </Box>
   );
 }

@@ -56,11 +56,17 @@ export default function TabLayout() {
         options={{
           title: 'CreateOrder',
           headerShown: true,
-          headerTitle: 'Create Order',
+          headerTitle: 'Create Order',  
+          headerStyle: {
+            backgroundColor: "#DE7123", // Change to your desired color    
+          },
+          headerShadowVisible: false, // React Navigation 6+
           headerTitleStyle: {
             fontSize: 16,
             fontWeight: '600',
+
           },
+          
           headerLeft: () => (
             <Box className="ml-4">
               <Pressable onPress={() => router.back()}>
@@ -71,6 +77,8 @@ export default function TabLayout() {
           tabBarIcon: (props) => (
             <TabBarIcon {...props} icon={CirclePlus} />
           ),
+
+      
         }}
       />
       <Tabs.Screen
@@ -84,6 +92,10 @@ export default function TabLayout() {
             fontSize: 16,
             fontWeight: '600',
           },
+          headerStyle: {
+            backgroundColor: "#DE7123", // Change to your desired color    
+          },
+          headerShadowVisible: false, // React Navigation 6+
           headerLeft: () => (
             <Box className="ml-4">
               <Pressable onPress={() => router.back()}>
@@ -96,6 +108,15 @@ export default function TabLayout() {
           ),
         }}
       />
+            <Tabs.Screen
+        name="latest-orders"
+        options={{
+          title: 'LatestOrders',
+          tabBarIcon: (props) => (
+            <TabBarIcon {...props} icon={User} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
@@ -105,6 +126,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
     </Tabs>
   );
 }
