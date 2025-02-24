@@ -21,7 +21,7 @@ logger = setup_logger()
 async def get_all_items(
     request: Request,
     zid: int,
-    item_name: Annotated[str | None, Query(description="Optional: Put Items ID or Items Name to filter results")] = None,
+    item_name: Annotated[Union[str, None], Query(description="Optional: Put Items ID or Items Name to filter results")] = None,
     limit: int = 10,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
