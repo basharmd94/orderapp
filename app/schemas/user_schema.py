@@ -1,89 +1,121 @@
-from pydantic import (
-    BaseModel,
-    Field,
-    EmailStr,
-    ValidationError,
-    field_validator,
-    model_validator,
-)
-from typing import Union
+from pydantic import BaseModel, validator
+from typing import List
 from passlib.context import CryptContext
-from typing_extensions import Self
-from utils.examples import (
-    registration_example,
-)  # Assuming this imports the examples correctly
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
+class UserBase(BaseModel):
+    user_name: str
+    email: str | None = None
+    mobile: str | None = None
+    status: str | None = "active"
+    businessId: int | None = None
+    terminal: str | None = None
+    accode: str | None = None
+    is_admin: str | None = "user"  # Changed from bool to str with default "user"
+    employee_name: str | None = None
 
-class UserBaseSchema(BaseModel):
-    user_id: str = Field(..., min_length=6)
-    user_name: str = Field(..., min_length=3)
-    mobile: str = Field(..., max_length=11)  # Consider a stricter mobile validation
-    email: str
-    # status: Union[str, None] = Field(default="inactive", title="default is active")
-    businessId: list[int] = Field([], title="list of businessId")
-    terminal: Union[str, None] = None
-    # accode: Union[str, None] = Field(default=0)
-    is_admin: Union[str, None] = None
+    @validator('businessId', pre=True)
+    def validate_business_id(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, (str, int)):
+            try:
+                return int(v)
+            except (ValueError, TypeError):
+                raise ValueError('businessId must be a valid integer')
+        if isinstance(v, list):
+            if not v:
+                return None
+            try:
+                return int(v[0])
+            except (ValueError, TypeError):
+                raise ValueError('businessId must be a valid integer')
+        raise ValueError('businessId must be a valid integer')
 
-    @field_validator("user_name")
-    @classmethod
-    def no_spaces(cls, v):
-        if " " in v:
-            raise ValueError("Spaces are not allowed in user name")
+    @validator('is_admin')
+    def validate_is_admin(cls, v):
+        if v not in ['admin', 'user', '']:
+            raise ValueError('is_admin must be either "admin", "user", or empty string')
         return v
-
-    class Config:
-
-        json_schema_extra = {
-            "examples": [
-                {
-                    "user_id": "IT--000009",
-                    "user_name": "basharmd95",
-                    "mobile": "01675373799",
-                    "email": "mat197195@gmail.com",
-                    "businessId": [100001, 100005, 100000],
-                    "is_admin": "",
-                    "password": "12345678",
-                    "confirm_password": "12345678",
-
-                }
-            ]
-        }
-
-
-class UserRegistrationSchema(UserBaseSchema):
-    password: str = Field(default="12345678", min_length=8)
-    confirm_password: str = Field(default="12345678", min_length=8)
-
-    @model_validator(mode="after")
-    def check_passwords_match(self) -> Self:
-        if self.password != self.confirm_password:
-            raise ValueError("Passwords do not match")
-        return self
-
-    @classmethod
-    def hash_password(cls, password: str):
-        return pwd_context.hash(password)
 
     class Config:
         from_attributes = True
 
+class UserRegistrationSchema(UserBase):
+    password: str
+    confirm_password: str | None = None
+    user_id: str | None = None
+
+    @validator('confirm_password')
+    def passwords_match(cls, v, values, **kwargs):
+        if 'password' in values and v is not None and values['password'] != v:
+            raise ValueError('Passwords do not match')
+        return v
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "user_id": "IT--000010",
+                    "user_name": "basharmd91",
+                    "mobile": "01675373799",
+                    "email": "mat197197@gmail.com",
+                    "status": "active",
+                    "businessId": 100001,
+                    "accode": "0",
+                    "is_admin": "",
+                    "password": "1234",
+                    "confirm_password": "1234",
+                    "terminal": "",
+                }
+            ]
+        }
+
+class UserOutSchema(UserBase):
+    user_id: str
+    businessId: int  # Changed to accept single integer
+
+    @validator('businessId', pre=True)
+    def validate_business_id(cls, v):
+        if isinstance(v, list):
+            # If it's a list, take the first value
+            return v[0] if v else None
+        return v
+    
+    @validator('is_admin')
+    def validate_is_admin(cls, v):
+        if v not in ['admin', 'user', '']:
+            raise ValueError('is_admin must be either "admin", "user", or empty string')
+        return v
+    
+    class Config:
+        from_attributes = True
 
 class UserLoginSchema(BaseModel):
     username: str
     password: str
 
+class TokenSchema(BaseModel):
+    access_token: str
+    token_type: str
+    refresh_token: str | None = None
+    expires_in: int | None = None
 
+class TokenPayload(BaseModel):
+    username: str | None = None
+    exp: int | None = None
 
-class UserOutSchema(BaseModel):
+class UserRegistrationResponse(BaseModel):
+    username: str
+    email: str
+    mobile: str | None = None
+    status: str
+    businessId: int
+    employeeCode: str
+    terminal: str
+    is_admin: str
     id: int
-    username: Union[str, None]
-    email: Union[str, None]
-    status: Union[str, None]
-    mobile: Union[str, None]
-    employeeCode: Union[str, None]
-    accode: Union[str, None]
+
     class Config:
-        from_attributes = True  # Allows the model to work with ORM models
+        from_attributes = True

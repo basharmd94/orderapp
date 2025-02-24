@@ -21,31 +21,18 @@ logger = setup_logger()
 async def get_all_items(
     request: Request,
     zid: int,
-    item: Annotated[str, Query(min_length=3, description="Put Items ID or Items Name")],
+    item_name: Annotated[str | None, Query(description="Optional: Put Items ID or Items Name to filter results")] = None,
     limit: int = 10,
     offset: int = 0,
-    db: AsyncSession = Depends(get_db),  # Inject database session
+    db: AsyncSession = Depends(get_db),
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
     logger.info(f"get all items endpoint called: {request.url.path}")
-
-    # Pass the db session to ItemsDBController
     items_db_controller = ItemsDBController(db)
-
-    # if zid in [100000, 100001]:
+    
     items = await items_db_controller.get_all_items(
-        zid=zid, item_name=item, limit=limit, offset=offset
+        zid=zid, item_name=item_name, limit=limit, offset=offset
     )
-    if not items:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_details("No items found"),
-        )
-    return items
-
-    # items = await items_db_controller.get_all_items_exclude_hmbr(
-    #     zid=zid, item_name=item, limit=limit, offset=offset
-    # )
     if not items:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -91,3 +78,23 @@ async def items_without_auth(
 
     finally:
         await items_db_controller.close()
+
+
+
+order = {
+  "xcus": "string",
+  "items": [
+    {
+      "xitem": "string",
+      "xdesc": "string",
+      "xqty": 0,
+      "xprice": 0,
+      "xroword": 0,
+      "xdate": "string",
+      "xsl": "string",
+      "xlat": 0,
+      "xlong": 0,
+      "xlinetotal": 0
+    }
+  ]
+}

@@ -1,107 +1,278 @@
-from fastapi import FastAPI
-import uvicorn
-from routers import opord_route, items_route, users_route, customers_route, orders_route, test_route, test_post_route
-from database import engine, Base
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+import uvicorn
+from typing import List
+import logging
+import os
+from dotenv import load_dotenv
+import json
+import traceback
+
+# Local imports
+from routers import (
+    opord_route,
+    items_route,
+    users_route,
+    customers_route,
+    orders_route,
+    test_route,
+    test_post_route 
+)
+from database import engine, Base
+from logs import setup_logger
+
+# Configure logging
+logger = setup_logger()
+
+# Load environment variables
+load_dotenv()
+
+def validate_env_vars():
+    # Required environment variables with their validation functions
+    required_env_vars = {
+        "SECRET_KEY": lambda x: len(x) >= 32,  # At least 32 chars for security
+        "ALGORITHM": lambda x: x in ["HS256", "HS384", "HS512"],  # Only allow HMAC-SHA algorithms
+        "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 5 <= int(x) <= 60,  # Between 5-60 minutes
+        "REFRESH_TOKEN_EXPIRE_DAYS": lambda x: x.isdigit() and 1 <= int(x) <= 30,  # Between 1-30 days
+        "DATABASE_URL": lambda x: x.startswith(("postgresql+asyncpg://", "postgresql://")),
+        "MAX_LOGIN_ATTEMPTS": lambda x: x.isdigit() and 1 <= int(x) <= 10,
+        "LOCKOUT_TIME_SECONDS": lambda x: x.isdigit() and 60 <= int(x) <= 3600,
+    }
+
+    for var_name, validator in required_env_vars.items():
+        value = os.getenv(var_name)
+        if not value:
+            raise ValueError(f"Required environment variable {var_name} is not set!")
+        if not validator(value):
+            raise ValueError(f"Environment variable {var_name} has invalid value: {value}")
+
+# Validate environment variables at startup
+validate_env_vars()
+
+# API Metadata
+API_VERSION = "v1"
+API_PREFIX = f"/api/{API_VERSION}"
 
 description = """
-Mobile Order Apps for HMBR, GI Corporation & Zepto Chemicals. 🚀
+# HMBR Mobile Apps API
 
-## Users
+Enterprise-grade API for Mobile Order Apps serving HMBR, GI Corporation & Zepto Chemicals. 🚀
 
-You will be able to:
+## Features
 
-* **Create users** (_not implemented_).
-* **Read users** (_not implemented_).
+### Users
+* User authentication and authorization
+* User profile management
+* Role-based access control
 
-## Items
-You can **read items**.
+### Orders
+* Create single and bulk orders
+* Track order status
+* Order history and analytics
+
+### Items
+* Inventory management
+* Stock tracking
+* Price management
+
+### Customers
+* Customer management
+* Customer history
+* Analytics and reporting
+
+## Authentication
+All endpoints require authentication using JWT tokens. Include the token in the Authorization header:
+```
+Authorization: Bearer <your_token>
+```
 """
 
 tags_metadata = [
     {
         "name": "Users",
-        "description": "Operations with users. The **login** logic is also here.",
+        "description": "User management operations including authentication and profile management.",
+    },
+    {
+        "name": "Orders",
+        "description": "Order management including creation, tracking, and history.",
     },
     {
         "name": "Items",
-        "description": "Get all items from all sections.",
+        "description": "Inventory and stock management operations.",
+    },
+    {
+        "name": "Customers",
+        "description": "Customer relationship management operations.",
     },
 ]
 
+# Initialize FastAPI app
 app = FastAPI(
     title="HMBR Mobile Apps API",
     description=description,
-    summary="API Version v1",
-    version="0.0.1",
-    terms_of_service="http://example.com/terms/",
+    version="1.0.0",
+    openapi_tags=tags_metadata,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
     contact={
         "name": "Bashar",
         "url": "https://bashar.pythonanywhere.com/",
         "email": "mat197194@gmail.com",
     },
     license_info={
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
-        "identifier": "MIT",
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
     },
-    openapi_tags=tags_metadata,
-    debug=True,
 )
 
-# CORS middleware
+# CORS Configuration
+CORS_ORIGINS = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:3000",
+    "http://localhost:8050",
+    "http://localhost:8000",
+    "*",  # Allow all origins (not recommended for production)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(
-    items_route.router,
-    prefix="/api/v1/items",
-    tags=["Items"],
-    responses={418: {"description": "Inventory, Items, Stock endpoint"}},
-)
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global exception handler caught: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "Internal server error",
+            "type": "internal_error"
+        }
+    )
 
-app.include_router(
-    users_route.router,
-    prefix="/api/v1/users",
-    tags=["Users"],
-    responses={418: {"description": "Users endpoint"}},
-)
+@app.middleware("http")
+async def debug_request_middleware(request: Request, call_next):
+    # Log request details
+    logger.debug(f"Request path: {request.url.path}")
+    logger.debug(f"Request method: {request.method}")
+    
+    # Only log request body for specific endpoints that might handle is_admin
+    if request.url.path.endswith(("/login", "/logout", "/registration")):
+        try:
+            body = await request.body()
+            if body:
+                body_str = body.decode()
+                logger.debug(f"Request body: {body_str}")
+                # Check for boolean values in the request
+                if '"is_admin":' in body_str and ('true' in body_str.lower() or 'false' in body_str.lower()):
+                    logger.warning(f"Found boolean is_admin in request body for {request.url.path}")
+        except Exception as e:
+            logger.error(f"Error reading request body: {str(e)}")
 
-app.include_router(
-    customers_route.router,
-    prefix="/api/v1/customers",
-    tags=["Customers"],
-    responses={418: {"description": "Customers endpoint"}},
-)
+    response = await call_next(request)
 
-app.include_router(
-    orders_route.router,
-    prefix="/api/v1/order",
-    tags=["Orders"],
-    responses={418: {"description": "Create Order endpoint"}},
-)
+    # Log response details for errors
+    if response.status_code >= 400:
+        logger.error(f"Error response status: {response.status_code}")
+        try:
+            response_body = b""
+            async for chunk in response.body_iterator:
+                response_body += chunk
+            logger.error(f"Error response body: {response_body.decode()}")
+            # Reconstruct response since we consumed the body iterator
+            return Response(content=response_body, status_code=response.status_code, 
+                          headers=dict(response.headers))
+        except Exception as e:
+            logger.error(f"Error reading response body: {str(e)}")
 
-app.include_router(
-    test_route.router,
-    prefix="/api/v1/test",
-    tags=["Test"],
-    responses={418: {"description": "Create Test endpoint"}},
+    return response
+
+# Health check endpoint
+@app.get(
+    f"{API_PREFIX}/health",
+    tags=["System"],
+    summary="System health check",
+    response_model=dict,
+    status_code=status.HTTP_200_OK
 )
-app.include_router(
-    test_post_route.router,
-    prefix="/api/v1/testpost",
-    tags=["Test POST"],
-    responses={418: {"description": "Create Test POST endpoint"}},
-)
+async def health_check():
+    """
+    Perform a health check of the system.
+    Returns:
+        dict: Health status of the system
+    """
+    return {
+        "status": "healthy",
+        "version": app.version,
+        "api_version": API_VERSION
+    }
+
+# Router configuration
+router_configs = [
+    {
+        "router": items_route.router,
+        "prefix": f"{API_PREFIX}/items",
+        "tags": ["Items"],
+        "responses": {404: {"description": "Item not found"}},
+    },
+    {
+        "router": users_route.router,
+        "prefix": f"{API_PREFIX}/users",
+        "tags": ["Users"],
+        "responses": {401: {"description": "Unauthorized"}},
+    },
+    {
+        "router": customers_route.router,
+        "prefix": f"{API_PREFIX}/customers",
+        "tags": ["Customers"],
+        "responses": {404: {"description": "Customer not found"}},
+    },
+    {
+        "router": orders_route.router,
+        "prefix": f"{API_PREFIX}/order",
+        "tags": ["Orders"],
+        "responses": {400: {"description": "Invalid order data"}},
+    },
+]
+
+# Include all routers
+for config in router_configs:
+    app.include_router(**config)
+
+# Development routes (should be disabled in production)
+if app.debug:
+    app.include_router(
+        test_route.router,
+        prefix=f"{API_PREFIX}/test",
+        tags=["Development"],
+    )
+    app.include_router(
+        test_post_route.router,
+        prefix=f"{API_PREFIX}/testpost",
+        tags=["Development"],
+    )
 
 # Function to create tables asynchronously
 async def create_database():
+    """Create all tables in the database asynchronously.
+
+    This function creates all tables in the database using the metadata
+    defined in the Base class. It is an asynchronous function and should be
+    used with the `asyncio` library.
+
+    Example:
+        async def main():
+            await create_database()
+
+        asyncio.run(main())
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -111,7 +282,46 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await engine.dispose()  # Dispose the engine on shutdown
+    """Execute shutdown tasks."""
+    logger.info("Shutting down application...")
+    await engine.dispose()
+    logger.info("Application shutdown completed")
 
+# Root endpoint
+@app.get("/", tags=["Root"])
+async def root():
+    """
+    Root endpoint that redirects users to the API documentation
+    """
+    return {
+        "message": "Welcome to HMBR Mobile Apps API",
+        "documentation": "/docs",
+        "redoc": "/redoc",
+        "version": app.version,
+        "api_version": API_VERSION,
+        "contact": {
+            "name": "Bashar",
+            "url": "https://bashar.pythonanywhere.com/",
+            "email": "mat197194@gmail.com",
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            },
+        "status": "healthy",
+        "tags": [tag["name"] for tag in tags_metadata]
+
+    }
+
+# Run the application
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, workers=4)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        workers=4,
+        log_level="info"
+    )
+
+
