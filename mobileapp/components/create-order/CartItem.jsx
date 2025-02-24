@@ -39,18 +39,18 @@ export default function CartItem({ item, onRemove }) {
             {item.xdesc.length > 30 ? item.xdesc.substring(0, 30) + "..." : item.xdesc}
           </Text>
           <HStack space="3" alignItems="center">
-            <Box className="bg-primary-50/80 px-2.5 py-1 rounded-full">
+            <Box className="bg-warning-400 px-2.5 py-1 rounded-full">
               <Text className="text-xs font-medium text-primary-800">
                 Qty: {item.xqty}
               </Text>
             </Box>
-            <Text className="text-gray-400">•</Text>
+            <Text className="text-orange-400"> ➞ </Text>
             <Box className="bg-green-50 px-2.5 py-1 rounded-full">
               <Text className="text-xs font-medium text-green-800">
                 ৳{item.xprice}
               </Text>
             </Box>
-            <Text className="text-gray-400">→</Text>
+            <Text className="text-orange-400"> ➞ </Text>
             <Box className="bg-purple-50 px-2.5 py-1 rounded-full">
               <Text className="text-xs font-bold text-purple-900">
                 ৳{item.xlinetotal}

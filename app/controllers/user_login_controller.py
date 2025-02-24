@@ -4,14 +4,12 @@ from controllers.db_controllers.database_controller import DatabaseController
 from models.users_model import ApiUsers, Logged, TokenBlacklist, SessionHistory, LoginAttempts
 from fastapi.security import OAuth2PasswordRequestForm
 from utils.error import error_details
-from utils.auth import (
-    create_access_token, 
-    create_refresh_token, 
-    verify_password, 
-    blacklist_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    ALGORITHM
+from utils.token_utils import (
+    create_access_token, create_refresh_token, blacklist_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES
 )
+from passlib.context import CryptContext
+
 from logs import setup_logger
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,11 +23,17 @@ load_dotenv()
 MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
 LOCKOUT_TIME_SECONDS = int(os.getenv("LOCKOUT_TIME_SECONDS", "300"))  # 5 minutes
 
+# Initialize password context
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
 logger = setup_logger()
 
 class UserLoginController:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        return pwd_context.verify(plain_password, hashed_password)
 
     async def check_login_attempts(self, username: str, ip_address: str) -> None:
         """Check if user is allowed to attempt login"""
@@ -100,7 +104,7 @@ class UserLoginController:
             )
             user = user.scalars().first()
 
-            if not user or not await verify_password(form_data.password, user.password):
+            if not user or not await self.verify_password(form_data.password, user.password):
                 await self.record_failed_attempt(form_data.username, ip_address)
                 logger.error(f"Failed login attempt for user {form_data.username} from IP {ip_address}")
                 raise HTTPException(
@@ -116,19 +120,6 @@ class UserLoginController:
                 )
 
             await self.reset_login_attempts(user.username)
-
-            existing_session = await self.db.execute(
-                select(Logged).filter_by(username=user.username)
-            )
-            existing_session = existing_session.scalars().first()
-
-            if existing_session:
-                logger.info(f"Forcing logout of previous session for user {user.username}")
-                await blacklist_token(self.db, existing_session.access_token)
-                if existing_session.refresh_token:
-                    await blacklist_token(self.db, existing_session.refresh_token)
-                await self.db.delete(existing_session)
-                await self.db.commit()
 
             # Create token data with essential claims
             token_data = {
@@ -147,9 +138,11 @@ class UserLoginController:
             device_info = json.dumps({
                 "user_agent": str(request.headers.get("user-agent")),
                 "ip": request.client.host,
-                "login_time": datetime.utcnow().isoformat()
+                "login_time": datetime.utcnow().isoformat(),
+                "device_id": request.headers.get("device-id", "unknown")  # Add support for device identification
             })
 
+            # Create new session without checking for existing ones
             new_session = Logged(
                 username=user.username,
                 businessId=user.businessId,
@@ -171,6 +164,7 @@ class UserLoginController:
                 "token_type": "bearer",
                 "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
             }
+
         except HTTPException as he:
             raise he
         except Exception as e:
@@ -183,16 +177,17 @@ class UserLoginController:
 
     async def user_logout(self, token: str, username: str):
         try:
+            # Find the specific session that matches both username and token
             logged_user = await self.db.execute(
-                select(Logged).filter_by(username=username)
+                select(Logged).filter_by(username=username, access_token=token)
             )
             logged_user = logged_user.scalars().first()
 
             if not logged_user:
-                logger.error(f"Logout failed: No active session for user {username}")
+                logger.error(f"Logout failed: No matching session found for user {username} with provided token")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No active session found"
+                    detail="No matching session found"
                 )
 
             try:
@@ -205,6 +200,7 @@ class UserLoginController:
                     if not user:
                         logger.warning(f"User record not found during logout - username: {username}")
 
+                    # Record the session history
                     session_history = SessionHistory(
                         username=logged_user.username,
                         businessId=logged_user.businessId,
@@ -218,15 +214,18 @@ class UserLoginController:
                     )
                     
                     self.db.add(session_history)
+                    
+                    # Blacklist only the tokens for this specific session
                     await blacklist_token(self.db, logged_user.access_token)
                     if logged_user.refresh_token:
                         await blacklist_token(self.db, logged_user.refresh_token)
                     
+                    # Remove only this specific session
                     await self.db.delete(logged_user)
                     await self.db.commit()
 
-                    logger.info(f"User {username} logged out successfully")
-                    return {"detail": f"User {username} logged out successfully"}
+                    logger.info(f"User {username} logged out successfully from one device")
+                    return {"detail": f"User {username} logged out successfully from this device"}
 
             except Exception as db_error:
                 logger.error(f"Database error during logout for user {username}: {str(db_error)}")
@@ -242,7 +241,7 @@ class UserLoginController:
                 raise e
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"An error occurred during logout"
+                detail="An error occurred during logout"
             )
 
     async def handle_forced_logout(self, username: str, reason: str = "Forced Logout"):
@@ -281,3 +280,114 @@ class UserLoginController:
             logger.error(f"Error during forced logout for {username}: {str(e)}")
             await self.db.rollback()
             raise
+
+    async def get_user_sessions(self, username: str):
+        """Get all active sessions for a user"""
+        try:
+            sessions = await self.db.execute(
+                select(Logged).filter_by(username=username)
+            )
+            sessions = sessions.scalars().all()
+            
+            return [{
+                "login_time": session.ztime,
+                "last_activity": session.zutime,
+                "device_info": json.loads(session.device_info) if session.device_info else {},
+                "status": session.status
+            } for session in sessions]
+        except Exception as e:
+            logger.error(f"Error fetching sessions for user {username}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error fetching user sessions"
+            )
+
+    async def logout_all_sessions(self, username: str, except_token: str = None):
+        """Logout from all sessions except the current one if specified"""
+        try:
+            # Get all sessions for the user
+            query = select(Logged).filter_by(username=username)
+            if except_token:
+                query = query.filter(Logged.access_token != except_token)
+
+            sessions = await self.db.execute(query)
+            sessions = sessions.scalars().all()
+
+            for session in sessions:
+                # Create session history record
+                session_history = SessionHistory(
+                    username=session.username,
+                    businessId=session.businessId,
+                    login_time=session.ztime,
+                    logout_time=datetime.utcnow(),
+                    device_info=session.device_info,
+                    status="Logged Out (All Sessions)",
+                    access_token=session.access_token,
+                    refresh_token=session.refresh_token,
+                    is_admin=session.is_admin
+                )
+                self.db.add(session_history)
+
+                # Blacklist the tokens
+                await blacklist_token(self.db, session.access_token)
+                if session.refresh_token:
+                    await blacklist_token(self.db, session.refresh_token)
+
+                # Remove the session
+                await self.db.delete(session)
+
+            await self.db.commit()
+            return {"detail": "Successfully logged out all sessions"}
+
+        except Exception as e:
+            logger.error(f"Error during mass logout for user {username}: {str(e)}")
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error logging out all sessions"
+            )
+
+    async def cleanup_inactive_sessions(self, max_inactive_hours: int = 24):
+        """Cleanup sessions that have been inactive for longer than the specified hours"""
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=max_inactive_hours)
+            
+            # Find inactive sessions
+            inactive_sessions = await self.db.execute(
+                select(Logged).filter(Logged.zutime < cutoff_time)
+            )
+            inactive_sessions = inactive_sessions.scalars().all()
+
+            for session in inactive_sessions:
+                # Record in session history
+                session_history = SessionHistory(
+                    username=session.username,
+                    businessId=session.businessId,
+                    login_time=session.ztime,
+                    logout_time=datetime.utcnow(),
+                    device_info=session.device_info,
+                    status="Auto Logout (Inactive)",
+                    access_token=session.access_token,
+                    refresh_token=session.refresh_token,
+                    is_admin=session.is_admin
+                )
+                self.db.add(session_history)
+
+                # Blacklist the tokens
+                await blacklist_token(self.db, session.access_token)
+                if session.refresh_token:
+                    await blacklist_token(self.db, session.refresh_token)
+
+                # Remove the session
+                await self.db.delete(session)
+
+            await self.db.commit()
+            return len(inactive_sessions)
+
+        except Exception as e:
+            logger.error(f"Error during inactive session cleanup: {str(e)}")
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error cleaning up inactive sessions"
+            )

@@ -1,15 +1,12 @@
-from fastapi import APIRouter, HTTPException, status, Path, Depends, Query, Request
-from logs import setup_logger
-from database import get_db
-from models.items_model import Base, Caitem
-from schemas.items_schema import ItemsBaseSchema, ItemsSchema
-from schemas.user_schema import UserRegistrationSchema
-from controllers.db_controllers.items_db_controller import ItemsDBController
-from typing import List, Union
-from utils.error import error_details
-from typing_extensions import Annotated
-from utils.auth import get_current_user, get_current_admin, get_current_normal_user
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from typing import List, Union, Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_db
+from controllers.db_controllers.items_db_controller import ItemsDBController
+from schemas.items_schema import ItemsSchema, ItemsBaseSchema
+from logs import setup_logger
+from utils.auth import get_current_user, get_current_admin, get_current_normal_user
+from schemas.user_schema import UserRegistrationSchema
 
 router = APIRouter()
 logger = setup_logger()

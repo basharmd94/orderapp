@@ -19,8 +19,9 @@ from routers import (
     test_route,
     test_post_route 
 )
-from database import engine, Base
+from database import engine, Base, get_db
 from logs import setup_logger
+from utils.auth import session_activity_middleware
 
 # Configure logging
 logger = setup_logger()
@@ -144,6 +145,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add session activity middleware with database dependency
+@app.middleware("http")
+async def add_db_to_request(request: Request, call_next):
+    # Set database session in request state
+    async for db in get_db():
+        request.state.db = db
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            await db.close()
+
+# Add session activity middleware after database middleware
+@app.middleware("http")
+async def activity_middleware(request: Request, call_next):
+    return await session_activity_middleware(request, call_next)
 
 # Global exception handler
 @app.exception_handler(Exception)

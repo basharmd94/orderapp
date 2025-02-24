@@ -290,13 +290,13 @@ const Home = () => {
                   <Avatar 
                     size="lg" 
                     className="bg-white/20 border-2 border-white/30"
-                    style={{
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 8,
-                      elevation: 5,
-                    }}
+                    // style={{
+                    //   shadowColor: '#000',
+                    //   shadowOffset: { width: 0, height: 4 },
+                    //   shadowOpacity: 0.2,
+                    //   shadowRadius: 8,
+                    //   elevation: 5,
+                    // }}
                   >
                     <AvatarFallbackText className="text-white">
                       {getInitials(user?.employee_name || 'User')}
@@ -474,10 +474,11 @@ const Home = () => {
               </Button>
             </HStack>
             <HStack>
-              {quickActions.map((action, index) => (
+              {/* {quickActions.map((action, index) => (
                 <QuickActionCard key={index} action={action} />
-              ))}
+              ))} */}
             </HStack>
+            <Text>Hello world</Text>
           </VStack>
         </Box>
       </ScrollView>
@@ -486,3 +487,5 @@ const Home = () => {
 };
 
 export default Home;
+
+

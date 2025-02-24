@@ -136,38 +136,45 @@ export default function CreateOrder() {
   const addToCart = async () => {
     if (!zid || !customer || !item || !quantity) return;
 
+    const parsedQuantity = parseInt(quantity);
+    const lineTotal = parsedQuantity * itemPrice;
+
     const newItem = {
-      xitem: item,
-      xdesc: itemName,
-      xqty: parseInt(quantity),
-      xprice: itemPrice,
-      xroword: cartItems.length + 1,
-      xdate: new Date().toISOString().split('T')[0],
-      xsl: Math.random().toString(36).substring(7),
-      xlat: null,
-      xlong: null,
-      xlinetotal: parseInt(quantity) * itemPrice
+        xitem: item,
+        xdesc: itemName,
+        xqty: parsedQuantity,
+        xprice: parseFloat(itemPrice),  // Ensure price is float
+        xroword: cartItems.length + 1,
+        xdate: new Date().toISOString().split('T')[0],
+        xsl: Math.random().toString(36).substring(7),
+        xlat: null,
+        xlong: null,
+        xlinetotal: lineTotal  // This will now be a float
     };
 
     let updatedItems;
     const existingItemIndex = cartItems.findIndex(i => i.xitem === item);
 
     if (existingItemIndex >= 0) {
-      updatedItems = cartItems.map((item, index) =>
-        index === existingItemIndex ? { ...item, xqty: parseInt(quantity), xlinetotal: parseInt(quantity) * itemPrice } : item
-      );
+        updatedItems = cartItems.map((item, index) =>
+            index === existingItemIndex ? 
+                { ...item, 
+                  xqty: parsedQuantity, 
+                  xlinetotal: lineTotal 
+                } : item
+        );
     } else {
-      updatedItems = [...cartItems, newItem];
+        updatedItems = [...cartItems, newItem];
     }
 
     setCartItems(updatedItems);
 
     const cartData = {
-      zid,
-      xcus: customer,
-      xcusname: customerName,
-      xcusadd: customerAddress,
-      items: updatedItems
+        zid,
+        xcus: customer,
+        xcusname: customerName,
+        xcusadd: customerAddress,
+        items: updatedItems
     };
 
     try {
@@ -492,7 +499,7 @@ export default function CreateOrder() {
               placement="bottom left"
               onPress={addToCart}
               isDisabled={!zid || !customer}
-              className="bg-amber-500 shadow-lg active:scale-95 hover:bg-amber-600 min-w-[140px]"
+              className="bg-amber-500 active:scale-95 hover:bg-amber-600 min-w-[140px]"
               m={6}
             >
               <ShoppingCart size={16} className = "text-white text-bold"/>
@@ -506,7 +513,7 @@ export default function CreateOrder() {
               placement="bottom right"
               onPress={addOrder}
               isDisabled={submitting}
-              className="bg-emerald-500 shadow-lg active:scale-95 hover:bg-emerald-600 min-w-[140px]"
+              className="bg-emerald-500 active:scale-95 hover:bg-emerald-600 min-w-[140px]"
               m={6}
             >
               {submitting ? (

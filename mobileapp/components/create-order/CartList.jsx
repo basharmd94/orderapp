@@ -26,7 +26,7 @@ export default function CartList({
       <Card className="w-full overflow-hidden border-lg shadow-lg relative md:max-w-md ml-auto md:h-[300px] h-[470px]">
         <VStack space="md" className="h-full">
           {/* Cart Header */}
-          <Box className="px-6 py-3 md:py-4 bg-gradient-to-r from-primary-500 to-primary-600 rounded-t-lg z-10">
+          <Box className="px-6 py-3 md:py-4 bg-warning-400 rounded-t-lg z-10">
             <HStack space="3" alignItems="center">
               <Text className="text-base md:text-lg font-semibold text-white truncate">
                 {customerName.length > 25 ? customerName.substring(0, 25) + "..." : customerName}

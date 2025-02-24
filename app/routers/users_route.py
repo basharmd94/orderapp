@@ -1,5 +1,5 @@
 import traceback
-from fastapi import APIRouter, status, Depends, HTTPException, Request
+from fastapi import APIRouter, status, Depends, HTTPException, Request, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from controllers.user_registration_controller import UserRegistrationController
 from controllers.user_login_controller import UserLoginController
@@ -8,13 +8,15 @@ from schemas.user_schema import UserRegistrationSchema, UserOutSchema
 from logs import setup_logger
 from utils.auth import (
     get_current_user, get_current_admin,
-    validate_password, create_access_token, blacklist_token,
-    is_token_blacklisted
+    oauth2_scheme
+)
+from utils.token_utils import (
+    create_access_token, blacklist_token,
+    is_token_blacklisted, SECRET_KEY, ALGORITHM
 )
 from typing import Annotated, List
 from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.auth import get_current_user, get_current_admin, oauth2_scheme
 from jose import jwt, JWTError
 from sqlalchemy.future import select
 from models.users_model import Logged, TokenBlacklist, ApiUsers
@@ -24,13 +26,6 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is not set")
-if not ALGORITHM:
-    raise ValueError("ALGORITHM environment variable is not set")
 
 router = APIRouter()
 logger = setup_logger()
@@ -42,9 +37,6 @@ async def user_registration(
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        # Validate password
-        await validate_password(user_data.password)
-        
         user_registration_controller = UserRegistrationController(db)
         result = await user_registration_controller.register_user(user_data)
         logger.info(f"User {user_data.user_name} registered successfully from {request.client.host}")
@@ -223,3 +215,26 @@ async def get_current_user_info(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not get user information"
         )
+
+@router.get("/sessions", response_model=list)
+async def get_user_sessions(
+    current_user: UserOutSchema = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all active sessions for the current user"""
+    user_login_controller = UserLoginController(db)
+    return await user_login_controller.get_user_sessions(current_user.user_name)
+
+@router.post("/logout/all")
+async def logout_all_sessions(
+    keep_current: bool = Query(default=False, description="Keep the current session active"),
+    current_user: UserOutSchema = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    """Logout from all sessions"""
+    user_login_controller = UserLoginController(db)
+    return await user_login_controller.logout_all_sessions(
+        current_user.user_name,
+        except_token=token if keep_current else None
+    )

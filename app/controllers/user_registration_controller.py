@@ -10,8 +10,6 @@ from utils.error import error_details
 from logs import setup_logger
 from passlib.context import CryptContext
 
-
-
 # Initialize password hashing context
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -20,8 +18,18 @@ logger = setup_logger()
 
 class UserRegistrationController:
     def __init__(self, db: AsyncSession):
-        self.db = db  # Use the session passed in from the route handler
-        self.user_db_controller = UserDBController(db)
+        self.db = db
+
+    async def get_password_hash(self, password: str) -> str:
+        return pwd_context.hash(password)
+
+    async def validate_password(self, password: str):
+        if len(password) < 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 4 characters long"
+            )
+        return True
 
     async def check_exists(self, model, attribute, value, error_message):
         try:
@@ -107,9 +115,6 @@ class UserRegistrationController:
             error_message="Email already registered in registration table",
         )
 
-    def hash_password(self, password: str) -> str:
-        return pwd_context.hash(password)
-
     async def register_user(self, users: UserRegistrationSchema):
         try:
             normalized_username = users.user_name.strip().lower()
@@ -129,7 +134,8 @@ class UserRegistrationController:
             await self.check_email_exists(users.email)
             await self.check_employeeCode_exist_in_apiusers(users.user_id)
 
-            hashed_password = self.hash_password(users.password)
+            await self.validate_password(users.password)
+            hashed_password = await self.get_password_hash(users.password)
             logger.debug("Password hashed successfully.")
 
             user_data = users.dict()

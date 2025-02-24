@@ -16,14 +16,7 @@ const QuickActionCard = memo(({ action }) => (
         ${action.primary ? 'bg-gradient-to-br from-primary-500 to-primary-600' : 'bg-white'} 
         p-5 rounded-3xl shadow-lg mx-2 first:ml-0 last:mr-0
       `}
-      style={{
-        height: 160,
-        shadowColor: action.primary ? '#FFA001' : '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: action.primary ? 0.3 : 0.1,
-        shadowRadius: 8,
-        elevation: 5,
-      }}
+
       onPress={action.onPress}
     >
       <VStack space="sm" className="items-start w-full">

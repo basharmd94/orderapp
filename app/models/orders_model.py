@@ -35,3 +35,12 @@ class Opmob(Base):
     xordernum = Column(String, nullable=True)  # character varying
     xterminal = Column(String)  # character varying
     xsl = Column(String, primary_key=True)  # character varying (primary key)
+
+
+class Opord(Base):
+    __tablename__ = "opord"
+
+    zid = Column(Integer)
+    xordernum = Column(String, primary_key=True)  # character varying
+    xdate = Column(Date)  # date
+    

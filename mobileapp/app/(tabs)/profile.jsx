@@ -15,10 +15,11 @@ import { Divider } from "@/components/ui/divider";
 import { LogOut, Mail, Phone, Building, Terminal, Shield } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
+
 const ProfileItem = ({ icon: Icon, label, value }) => (
   <HStack space="md" className="items-center py-3">
-    <Box className="bg-primary-50 p-2 rounded-lg">
-      <Icon size={20} className="text-primary-500" />
+    <Box className="bg-orange-400 p-2 rounded-lg">
+      <Icon size={20} color="#fff" />
     </Box>
     <VStack>
       <Text className="text-gray-500 text-sm">{label}</Text>
@@ -40,14 +41,14 @@ export default function Profile() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-primary-">
       <ScrollView>
         <Box className="p-4">
           <Animated.View 
             entering={FadeInDown.duration(500).springify()}
             className="items-center mb-6"
           >
-            <Avatar size="2xl" className="bg-primary-100 mb-4">
+            <Avatar size="2xl" className="bg-orange-400 mb-4">
               <AvatarFallbackText>
                 {getInitials(user?.employee_name || user?.username || 'User')}
               </AvatarFallbackText>
@@ -95,7 +96,9 @@ export default function Profile() {
                   label="Role" 
                   value={user?.is_admin === 'admin' ? 'Administrator' : 'User'} 
                 />
+                
               </VStack>
+              
             </Card>
 
             <Button
@@ -103,9 +106,9 @@ export default function Profile() {
               variant="outline"
               action="error"
               onPress={logout}
-              className="mt-4"
+              className="mt-4 bg-orange-400 border-0"
             >
-              <ButtonIcon as={LogOut} className="mr-2 text-error-600" />
+              <ButtonIcon as={LogOut} className="mr-2 text-error-600 text-white" />
               <ButtonText>Logout</ButtonText>
             </Button>
           </Animated.View>

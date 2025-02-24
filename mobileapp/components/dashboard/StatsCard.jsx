@@ -43,6 +43,7 @@ const StatsCard = memo(({ stat }) => (
         <Text className="text-white/90 text-sm font-medium">
           {stat.title}
         </Text>
+        <Text>Hello world</Text>
       </VStack>
     </VStack>
   </Card>
