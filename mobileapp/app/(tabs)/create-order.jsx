@@ -47,7 +47,7 @@ export default function CreateOrder() {
   const [hasMoreItems, setHasMoreItems] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
-  const LIMIT = 100;
+  const LIMIT = 10;
   const searchSequence = useRef(0);
   const itemSearchSequence = useRef(0);
   const searchDebounceRef = useRef(null);
@@ -69,7 +69,7 @@ export default function CreateOrder() {
     searchSequence.current = 0;
     setCustomerOffset(0);
     setHasMoreCustomers(true);
-    if (customerSearchText.length < 1) { // Changed from 3 to 1
+    if (customerSearchText.length < 3) { // Changed from 3 to 1
       setCustomers([]);
       setHasMoreCustomers(false);
     }
@@ -107,7 +107,7 @@ export default function CreateOrder() {
   const handleZidSelect = (selectedZid) => {
     setZid(selectedZid);
     setShowZidSheet(false);
-    // Reset when ZID changes
+    // Reset when ZID changes 
     setCustomer("");
     setCustomerName("");
     setCustomerAddress("");
@@ -240,7 +240,7 @@ export default function CreateOrder() {
   };
 
   const searchCustomers = useCallback(async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 1 || !user) { // Changed from 3 to 1
+    if (!zid || searchText.length < 3 || !user) { // Changed from 3 to 1
       setCustomers([]);
       return;
     }
@@ -381,7 +381,7 @@ export default function CreateOrder() {
 
   const handleItemSearch = (text) => {
     setItemSearchText(text);
-    if (text.length >= 1) { // Changed from 3 to 1
+    if (text.length >= 3) { // Changed from 3 to 1
       // Use timeout for all searches
       const timeoutId = setTimeout(() => {
         searchItems(text);
@@ -394,7 +394,7 @@ export default function CreateOrder() {
   };
 
   const handleLoadMoreItems = () => {
-    if (!loadingMoreItems && hasMoreItems && itemSearchText.length >= 1) { // Changed from 3 to 1
+    if (!loadingMoreItems && hasMoreItems && itemSearchText.length >= 3) { // Changed from 3 to 1
       searchItems(itemSearchText, true);
     }
   };
