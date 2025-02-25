@@ -150,6 +150,7 @@ class UserLoginController:
                 refresh_token=refresh_token,
                 status="Logged In",
                 device_info=device_info,
+                is_admin=user.is_admin,  # Added is_admin field
                 zutime=datetime.utcnow()
             )
 
@@ -191,44 +192,36 @@ class UserLoginController:
                 )
 
             try:
-                with self.db.no_autoflush:
-                    user_query = await self.db.execute(
-                        select(ApiUsers).filter_by(username=username)
-                    )
-                    user = user_query.scalar()
-                    
-                    if not user:
-                        logger.warning(f"User record not found during logout - username: {username}")
+                # Record the session history
+                session_history = SessionHistory(
+                    username=logged_user.username,
+                    businessId=logged_user.businessId,
+                    login_time=logged_user.ztime,
+                    logout_time=datetime.utcnow(),
+                    device_info=logged_user.device_info,
+                    status="Completed",
+                    access_token=logged_user.access_token,
+                    refresh_token=logged_user.refresh_token,
+                    is_admin=logged_user.is_admin  # Use is_admin from logged session
+                )
+                
+                self.db.add(session_history)
+                
+                # Blacklist only the tokens for this specific session
+                await blacklist_token(self.db, logged_user.access_token)
+                if logged_user.refresh_token:
+                    await blacklist_token(self.db, logged_user.refresh_token)
+                
+                # Remove only this specific session
+                await self.db.delete(logged_user)
+                await self.db.commit()
 
-                    # Record the session history
-                    session_history = SessionHistory(
-                        username=logged_user.username,
-                        businessId=logged_user.businessId,
-                        login_time=logged_user.ztime,
-                        logout_time=datetime.utcnow(),
-                        device_info=logged_user.device_info,
-                        status="Completed",
-                        access_token=logged_user.access_token,
-                        refresh_token=logged_user.refresh_token,
-                        is_admin=user.is_admin if user else "user"
-                    )
-                    
-                    self.db.add(session_history)
-                    
-                    # Blacklist only the tokens for this specific session
-                    await blacklist_token(self.db, logged_user.access_token)
-                    if logged_user.refresh_token:
-                        await blacklist_token(self.db, logged_user.refresh_token)
-                    
-                    # Remove only this specific session
-                    await self.db.delete(logged_user)
-                    await self.db.commit()
-
-                    logger.info(f"User {username} logged out successfully from one device")
-                    return {"detail": f"User {username} logged out successfully from this device"}
+                logger.info(f"User {username} logged out successfully from one device")
+                return {"detail": f"User {username} logged out successfully from this device"}
 
             except Exception as db_error:
                 logger.error(f"Database error during logout for user {username}: {str(db_error)}")
+                await self.db.rollback()
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Database error during logout process"
@@ -324,7 +317,7 @@ class UserLoginController:
                     status="Logged Out (All Sessions)",
                     access_token=session.access_token,
                     refresh_token=session.refresh_token,
-                    is_admin=session.is_admin
+                    is_admin=session.is_admin  # Use is_admin from logged session
                 )
                 self.db.add(session_history)
 
@@ -369,7 +362,7 @@ class UserLoginController:
                     status="Auto Logout (Inactive)",
                     access_token=session.access_token,
                     refresh_token=session.refresh_token,
-                    is_admin=session.is_admin
+                    is_admin=session.is_admin  # Use is_admin from logged session
                 )
                 self.db.add(session_history)
 

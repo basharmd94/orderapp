@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db
+from database import get_db, async_session_maker
 from fastapi import APIRouter, status, Depends, HTTPException, Request, Path
 from fastapi.responses import JSONResponse
 from typing import List
+import asyncio
+from asyncio import Queue
 
 from schemas.orders_schema import OpmobSchema, BulkOpmobSchema, OpmobResponse
 from schemas.user_schema import UserRegistrationSchema
@@ -10,6 +12,7 @@ from logs import setup_logger
 from utils.auth import get_current_normal_user
 from controllers.db_controllers.orders_db_controller import OrderDBController
 import traceback
+from datetime import datetime
 
 router = APIRouter(
     tags=["Orders"],
@@ -21,6 +24,98 @@ router = APIRouter(
 
 logger = setup_logger()
 
+# Configure the maximum number of concurrent operations
+MAX_CONCURRENT_OPERATIONS = 5
+
+# Helper to convert Opmob object to OpmobResponse
+def convert_to_opmob_response(item) -> OpmobResponse:
+    """Convert database model to Pydantic schema for response"""
+    # Create a dictionary with all attributes that exist in the database model
+    item_dict = {
+        "invoicesl": item.invoicesl,
+        "xroword": item.xroword,
+        "zutime": item.zutime or datetime.now(),
+        "xdate": item.xdate or datetime.now(),
+        "xqty": item.xqty,
+        "xlat": item.xlat,
+        "xlong": item.xlong,
+        "xlinetotal": float(item.xlinetotal) if item.xlinetotal is not None else 0.0,
+        "xtra1": item.xtra1 if hasattr(item, 'xtra1') else None,
+        "xtra2": item.xtra2 if hasattr(item, 'xtra2') else None,
+        "xprice": float(item.xprice) if item.xprice is not None else 0.0,
+        "ztime": item.ztime or datetime.now(),
+        "zid": item.zid,
+        "xtra3": item.xtra3 if hasattr(item, 'xtra3') else None,
+        "xtra4": item.xtra4 if hasattr(item, 'xtra4') else None,
+        "xtra5": item.xtra5 if hasattr(item, 'xtra5') else None,
+        "invoiceno": item.invoiceno,
+        "username": item.username,
+        "xemp": item.xemp,
+        "xcus": item.xcus,
+        "xcusname": item.xcusname,
+        "xcusadd": item.xcusadd,
+        "xitem": item.xitem,
+        "xdesc": item.xdesc,
+        "xstatusord": item.xstatusord if hasattr(item, 'xstatusord') else None,
+        "xordernum": item.xordernum if hasattr(item, 'xordernum') else None,
+        "xterminal": item.xterminal,
+        "xsl": item.xsl,
+    }
+    return OpmobResponse(**item_dict)
+
+async def process_single_order(order: OpmobSchema, current_user: UserRegistrationSchema) -> List[OpmobResponse]:
+    """Process a single order with its own database session"""
+    session = async_session_maker()
+    try:
+        logger.info(f"Creating new database session for order processing customer: {order.xcus}")
+        order_db_controller = OrderDBController(session)
+        
+        # Removed the session.begin() context manager as the controller handles its own transactions
+        logger.info(f"Starting order creation for customer {order.xcus} with {len(order.items)} items")
+        created_items = await order_db_controller.create_order(order.zid, order, current_user)
+        logger.info(f"Order created successfully for customer {order.xcus} with {len(created_items)} items")
+        
+        # Convert DB models to Pydantic models
+        response_items = [convert_to_opmob_response(item) for item in created_items]
+        logger.info(f"Converted {len(response_items)} DB items to response models")
+        return response_items
+    except Exception as e:
+        logger.error(f"Error processing order for customer {order.xcus}: {str(e)}\n{traceback.format_exc()}")
+        raise
+    finally:
+        await session.close()
+        logger.info(f"Closed database session for customer {order.xcus}")
+
+async def process_order_queue(queue: Queue, current_user: UserRegistrationSchema) -> List[OpmobResponse]:
+    """Process orders from the queue concurrently"""
+    created_items = []
+    orders_processed = 0
+    while True:
+        try:
+            order = await queue.get()
+            if order is None:  # Sentinel value to indicate end of queue
+                logger.info("Worker received sentinel value, ending processing")
+                break
+            
+            orders_processed += 1
+            logger.info(f"Processing order #{orders_processed} for customer {order.xcus} with {len(order.items)} items")
+                
+            items = await process_single_order(order, current_user)
+            if items:
+                created_items.extend(items)
+                logger.info(f"Added {len(items)} items to result, total: {len(created_items)}")
+            else:
+                logger.warning(f"Order processing returned no items for customer {order.xcus}")
+        except Exception as e:
+            logger.error(f"Error processing order: {str(e)}\n{traceback.format_exc()}")
+            # Continue processing other orders
+        finally:
+            queue.task_done()
+    
+    # Log the results for debugging
+    logger.info(f"Worker finished with {len(created_items)} items")
+    return created_items
+
 async def handle_order_creation(
     request: Request,
     zid: int,
@@ -28,14 +123,14 @@ async def handle_order_creation(
     current_user: UserRegistrationSchema,
     db: AsyncSession
 ) -> List[OpmobResponse]:
-    """
-    Helper function to handle order creation logic
-    """
-    order_db_controller = OrderDBController(db)
+    """Helper function to handle order creation logic"""
     try:
-        created_items = await order_db_controller.create_order(zid, order, current_user)
+        order_db_controller = OrderDBController(db)
+        db_items = await order_db_controller.create_order(zid, order, current_user)
         logger.info(f"Order created by {current_user.user_name}, id {current_user.user_id}")
-        return created_items
+        
+        # Convert DB models to Pydantic models
+        return [convert_to_opmob_response(item) for item in db_items]
     except ValueError as e:
         logger.error(f"Validation error creating order: {e}")
         raise HTTPException(
@@ -62,25 +157,6 @@ async def create_order(
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Create a new order with the following information:
-    - Business ID (zid)
-    - Customer details (ID, name, address)
-    - List of items with quantities and prices
-    - Location information (optional)
-    
-    Example request body:
-    {
-        "zid": 100,
-        "xcus": "CUS-000001",
-        "xcusname": "Customer Name",
-        "xcusadd": "Customer Address",
-        "items": [...]
-    }
-    
-    Returns:
-        List of created order items
-    """
     return await handle_order_creation(request, order.zid, order, current_user, db)
 
 @router.post(
@@ -88,7 +164,7 @@ async def create_order(
     status_code=status.HTTP_201_CREATED,
     response_model=List[OpmobResponse],
     summary="Create multiple orders in bulk",
-    description="Creates multiple orders at once for different customers"
+    description="Creates multiple orders at once for different customers using concurrent processing"
 )
 async def create_bulk_order(
     request: Request,
@@ -97,55 +173,75 @@ async def create_bulk_order(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Create multiple orders in bulk with the following information for each order:
-    - Business ID (zid)
-    - Customer details (ID, name, address)
-    - List of items with quantities and prices
-    - Location information (optional)
-    
-    Example request body:
-    {
-        "orders": [
-            {
-                "zid": 100,
-                "xcus": "CUS-000001",
-                "xcusname": "Customer Name",
-                "xcusadd": "Customer Address",
-                "items": [...]
-            },
-            {
-                "zid": 100,
-                "xcus": "CUS-000002",
-                "xcusname": "Customer Name 2",
-                "xcusadd": "Customer Address 2",
-                "items": [...]
-            }
-        ]
-    }
-    
-    Returns:
-        List of all created order items
+    Create multiple orders concurrently using an asyncio Queue to manage concurrency.
     """
-    logger.info(f"Create bulk order endpoint called by: {request.url.path}")
-    order_db_controller = OrderDBController(db)
-
+    logger.info(f"Create bulk order endpoint called by: {request.url.path} with {len(orders_data.orders)} orders")
+    
+    if not orders_data.orders:
+        logger.warning("No orders provided in request")
+        return []
+    
     try:
-        created_items = []
+        # Log request details
+        logger.info(f"Processing bulk order request with {len(orders_data.orders)} orders")
+        logger.info(f"First order data: Customer: {orders_data.orders[0].xcus}, Items: {len(orders_data.orders[0].items)}")
+        
+        # For non-concurrent processing (fallback)
+        if len(orders_data.orders) == 1:
+            logger.info("Processing single order directly")
+            order_controller = OrderDBController(db)
+            db_items = await order_controller.create_order(
+                orders_data.orders[0].zid, 
+                orders_data.orders[0], 
+                current_user
+            )
+            logger.info(f"Single order processed, created {len(db_items)} items")
+            # Convert DB models to Pydantic response models
+            response_items = [convert_to_opmob_response(item) for item in db_items]
+            logger.info(f"Returning {len(response_items)} response items")
+            return response_items
+        
+        # Create a queue and populate it with orders
+        order_queue = Queue()
         for order in orders_data.orders:
-            items = await handle_order_creation(request, order.zid, order, current_user, db)
-            created_items.extend(items)
+            await order_queue.put(order)
+            
+        # Add sentinel values to signal end of queue
+        worker_count = min(MAX_CONCURRENT_OPERATIONS, len(orders_data.orders))
+        for _ in range(worker_count):
+            await order_queue.put(None)
         
-        logger.info(f"Bulk orders created by {current_user.user_name}, id {current_user.user_id}")
-        return created_items
+        logger.info(f"Starting {worker_count} worker tasks")
         
-    except HTTPException as e:
-        # Re-raise HTTP exceptions as they're already properly formatted
-        raise e
+        # Process orders concurrently
+        tasks = []
+        for i in range(worker_count):
+            task = asyncio.create_task(process_order_queue(order_queue, current_user))
+            tasks.append(task)
+        
+        # Wait for all tasks to complete
+        all_results = await asyncio.gather(*tasks)
+        logger.info(f"All tasks completed, merging results from {len(all_results)} workers")
+        
+        # Merge results from all workers
+        final_results = []
+        for result_list in all_results:
+            if isinstance(result_list, list):
+                final_results.extend(result_list)
+                logger.info(f"Added {len(result_list)} items from a worker")
+            else:
+                logger.warning(f"Worker returned non-list result: {type(result_list)}")
+        
+        logger.info(f"Final result has {len(final_results)} items")
+        
+        # Our results are already Pydantic models at this point
+        return final_results
+        
     except Exception as e:
         logger.error(f"Unexpected error creating bulk orders: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"message": "Error creating bulk orders", "type": "server_error"}
+            detail={"message": f"Error creating bulk orders: {str(e)}", "type": "server_error"}
         )
 
 @router.get(
@@ -155,9 +251,6 @@ async def create_bulk_order(
     description="Check if the orders service is running"
 )
 async def health_check():
-    """
-    Simple health check endpoint to verify the service is running
-    """
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={"status": "healthy", "service": "orders"}

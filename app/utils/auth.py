@@ -50,7 +50,7 @@ async def session_activity_middleware(request: Request, call_next):
 
         # Get the authorization header
         auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
+        if (auth_header and auth_header.startswith("Bearer ")):
             token = auth_header.split(" ")[1]
             try:
                 # Decode token to get username
@@ -58,19 +58,22 @@ async def session_activity_middleware(request: Request, call_next):
                 username = payload.get("username")
                 
                 if username:
-                    # Get DB session
-                    db = request.state.db
-                    if not db:
+                    # Get DB session - ensure we have a valid session
+                    db = None
+                    try:
+                        db = request.state.db
+                    except AttributeError:
                         db = next(get_db())
                     
-                    # Update session activity directly
-                    await update_session_activity(db, username, token)
+                    if db:
+                        # Update session activity
+                        await update_session_activity(db, username, token)
+            except JWTError:
+                logger.warning("Invalid token in session activity update")
             except Exception as e:
-                # Log error but don't block the request
                 logger.error(f"Error updating session activity: {str(e)}")
 
     except Exception as e:
-        # Log error but don't block the request
         logger.error(f"Session middleware error: {str(e)}")
 
     return await call_next(request)

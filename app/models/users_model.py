@@ -61,6 +61,15 @@ class Logged(Base):
     refresh_token = Column(String(1000))  # Increased length for JWT tokens
     status = Column(String)
     device_info = Column(String)  # To track device information
+    is_admin = Column(String)  # Added is_admin field
+
+    @validates('is_admin')
+    def validate_is_admin(self, key, value):
+        if isinstance(value, bool):
+            return 'admin' if value else 'user'
+        if value not in ['admin', 'user', '']:
+            raise ValueError('is_admin must be either "admin", "user", or empty string')
+        return value
 
 class TokenBlacklist(Base):
     __tablename__ = "token_blacklist"

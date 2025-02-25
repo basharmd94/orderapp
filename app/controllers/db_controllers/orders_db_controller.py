@@ -2,21 +2,16 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from models.orders_model import Opmob
 from schemas.orders_schema import OpmobSchema
 from schemas.user_schema import UserRegistrationSchema
 from utils.orders_utils import format_invoice_number, generate_random_number
 
 class OrderDBController:
-    """Controller for handling order-related database operations. hellow world"""
+    """Controller for handling order-related database operations."""
 
-    
     def __init__(self, db: AsyncSession):
-        """Initialize the controller with a database session.
-        
-        Args:
-            db (AsyncSession): The database session to use for operations
-        """
         self.db = db
 
     async def _create_order_item(
@@ -28,19 +23,6 @@ class OrderDBController:
         item_data: dict,
         current_user: UserRegistrationSchema
     ) -> Opmob:
-        """Create a single order item in the database.
-        
-        Args:
-            zid (int): Zone ID
-            invoiceno (str): Formatted invoice number
-            invoicesl (str): Invoice serial number
-            order_data (OpmobSchema): Order data containing customer information
-            item_data (dict): Individual item data
-            current_user (UserRegistrationSchema): Current user information
-            
-        Returns:
-            Opmob: Created order item
-        """
         current_time = datetime.now()
         
         return Opmob(
@@ -48,7 +30,7 @@ class OrderDBController:
             ztime=current_time,
             zutime=current_time,
             invoiceno=f"{current_user.terminal}-{invoiceno}",
-            invoicesl=int(invoicesl),  # Convert to int here for database
+            invoicesl=int(invoicesl),
             username=current_user.user_name,
             xemp=current_user.user_id,
             xcus=order_data.xcus,
@@ -73,22 +55,15 @@ class OrderDBController:
         order_data: OpmobSchema, 
         current_user: UserRegistrationSchema
     ) -> List[Opmob]:
-        """Create a new order with multiple items.
-        
-        Args:
-            zid (int): Zone ID
-            order_data (OpmobSchema): Order data containing customer and items information
-            current_user (UserRegistrationSchema): Current user information
-            
-        Returns:
-            List[Opmob]: List of created order items
-        """
-        # Generate invoice numbers - keep as string until database insertion
-        invoicesl = generate_random_number(12)  # Returns string
+        """Create a new order with multiple items."""
+        # Generate invoice numbers
+        invoicesl = generate_random_number(12)
         invoiceno = format_invoice_number(invoicesl)
         
         # Create order items
         created_items = []
+        created_xsl_values = []  # Store XSL values for later retrieval
+        
         for item in order_data.items:
             order_item = await self._create_order_item(
                 zid=zid,
@@ -100,15 +75,23 @@ class OrderDBController:
             )
             self.db.add(order_item)
             created_items.append(order_item)
+            created_xsl_values.append(order_item.xsl)  # Remember XSL values
 
-        # Commit all changes at once
+        # Commit changes
         await self.db.commit()
         
-        # Refresh all items to get their updated state
-        for item in created_items:
-            await self.db.refresh(item)
+        # Fetch the created items with fresh data by querying them separately
+        # instead of calling refresh which can cause transaction issues
+        result_items = []
+        for xsl in created_xsl_values:
+            # Execute a select query to get the fresh item
+            stmt = select(Opmob).where(Opmob.xsl == xsl)
+            result = await self.db.execute(stmt)
+            fresh_item = result.scalar_one_or_none()
+            if fresh_item:
+                result_items.append(fresh_item)
             
-        return created_items
+        return result_items
 
     async def create_bulk_order(
         self, 
@@ -116,16 +99,7 @@ class OrderDBController:
         orders_data: List[OpmobSchema], 
         current_user: UserRegistrationSchema
     ) -> List[Opmob]:
-        """Create multiple orders in bulk.
-        
-        Args:
-            zid (int): Zone ID
-            orders_data (List[OpmobSchema]): List of orders to create
-            current_user (UserRegistrationSchema): Current user information
-            
-        Returns:
-            List[Opmob]: List of all created order items
-        """
+        """Create multiple orders in bulk."""
         all_created_items = []
         
         for order_data in orders_data:

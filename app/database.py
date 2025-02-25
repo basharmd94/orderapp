@@ -9,15 +9,15 @@ SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432
 # Create an asynchronous engine
 engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
 
-# Create session local
-AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+# Create session maker
+async_session_maker = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 # Base class for declarative models
 Base = declarative_base()
 
-# Dependency to get the database sessionasync def get_db():
+# Dependency to get the database session
 async def get_db():
-    async with AsyncSessionLocal() as db:
+    async with async_session_maker() as db:
         try:
             yield db
         finally:
