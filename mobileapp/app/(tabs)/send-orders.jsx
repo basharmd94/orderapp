@@ -207,7 +207,7 @@ export default function SendOrders() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <Box className="px-4 py-3 bg-white shadow-sm border-b border-warning-100 w-full">
+      <Box className="px-4 py-3 bg-white  border-b border-warning-100 w-full">
         <HStack justifyContent="space-between" alignItems="center">
           {orders.length > 0 && (
             <Badge size="md" variant="outline" action="success" className="w-full flex-1 justify-center rounded-full">
@@ -222,11 +222,11 @@ export default function SendOrders() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <Box className="p-4">
           {orders.length === 0 ? (
-            <Card className="bg-white shadow-xl border border-warning-200 rounded-md overflow-hidden">
+            <Card className="bg-white  border border-warning-200 rounded-md overflow-hidden">
               {/* Header Background */}
               <Box className="p-6 flex flex-col items-center justify-center bg-gradient-to-b from-warning-50 to-warning-100">
                 {/* Icon Section */}
-                <Box className="w-24 h-24 bg-warning-50 rounded-full flex items-center justify-center shadow-lg border-4 border-warning-200">
+                <Box className="w-24 h-24 bg-warning-50 rounded-full flex items-center justify-center  border-4 border-warning-200">
                   <Animated.View style={emptyStateIconStyle}>
                     <Send size={36} className="text-warning-500" />
                   </Animated.View>
@@ -241,7 +241,7 @@ export default function SendOrders() {
                 </VStack>
 
                 {/* Plus Button (Placed Below the Text) */}
-                <Box className="mt-4 w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center border-4 border-white shadow-md">
+                <Box className="mt-4 w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center border-4 border-white ">
                   <Plus size={20} className="text-warning-600" />
                 </Box>
               </Box>
@@ -252,7 +252,7 @@ export default function SendOrders() {
               {orders.map((order, index) => (
                 <Card
                   key={`${order.zid}-${order.xcus}-${order.items[0].xsl}`}
-                  className="bg-white shadow-lg hover:shadow-xl border border-warning-100 rounded-2xl overflow-hidden transform transition-all duration-200 hover:-translate-y-0.5"
+                  className="bg-white  border border-warning-100 rounded-2xl overflow-hidden transform transition-all duration-200 hover:-translate-y-0.5"
                 >
                   <VStack space="md">
                     {/* Order Header */}
@@ -290,7 +290,7 @@ export default function SendOrders() {
                             variant="outline"
                             action="error"
                             onPress={() => deleteOrder(order)}
-                            className="rounded-full p-3.5 border-red-200 active:bg-red-50 shadow-sm"
+                            className="rounded-full p-3.5 border-red-200 active:bg-red-50 "
                           >
                             <ButtonIcon as={Trash2} className="text-red-500" />
                           </Button>
@@ -298,7 +298,7 @@ export default function SendOrders() {
                             size="lg"
                             onPress={() => sendOrder(order)}
                             disabled={loadingState.sending}
-                            className="rounded-full p-3.5 bg-warning-500 active:bg-warning-600 shadow-sm"
+                            className="rounded-full p-3.5 bg-warning-500 active:bg-warning-600"
                           >
                             {loadingState.sending && loadingState.currentOrderId === order.zid ? (
                               <Spinner size="small" color="$white" />
@@ -390,7 +390,7 @@ export default function SendOrders() {
     </HStack>
 
     {/* Value Badge - Properly Aligned */}
-    <Box className="bg-white px-4 py-1 rounded-full border border-warning-200 shadow-sm">
+    <Box className="bg-white px-4 py-1 rounded-full border border-warning-200">
       <HStack className="items-center space-x-1">
         <CreditCard size={14} className="text-warning-600" /> 
         <Text className="text-base font-semibold text-warning-700 leading-none">৳{calculateTotal(order.items)}</Text>
@@ -439,7 +439,7 @@ export default function SendOrders() {
               action="secondary"
               onPress={handleClose}
               size="lg"
-              className="rounded-full p-3.5 border-warning-200 shadow-sm flex-1 max-w-[120px]"
+              className="rounded-full p-3.5 border-warning-200  flex-1 max-w-[120px]"
             >
               <ButtonIcon as={X} className="text-gray-700" />
 
@@ -449,7 +449,7 @@ export default function SendOrders() {
               action="positive"
               onPress={handleBulkSend}
               isDisabled={loadingState.sending}
-              className="rounded-full p-3.5 bg-success-500 shadow-sm flex-1 max-w-[120px]"
+              className="rounded-full p-3.5 bg-success-500  flex-1 max-w-[120px]"
             >
               {loadingState.sending ? (
                 <Spinner size="small" color="$white" />
@@ -468,7 +468,7 @@ export default function SendOrders() {
       <Box className="fixed bottom-5 right-0 m-4 relative">
         {orders.length > 0 && (
           <Box
-            className="absolute -top-[75px] -right-[-10px] bg-error-500 rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5 shadow-lg border-2 border-white z-50 transition-transform duration-200"
+            className="absolute -top-[75px] -right-[-10px] bg-error-500 rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5  border-2 border-white z-50 transition-transform duration-200"
           >
             <Text className="text-[11px] font-bold text-white">{orders.length}</Text>
           </Box>
@@ -478,7 +478,7 @@ export default function SendOrders() {
           placement="bottom right"
           isDisabled={loadingState.sending || orders.length === 0}
           onPress={() => setShowAlertDialog(true)}
-          className="bg-emerald-500 rounded-full shadow-xl active:scale-95 hover:scale-105 active:bg-emerald-600 p-4 transition-all duration-200"
+          className="bg-emerald-500 rounded-full active:scale-95 hover:scale-105 active:bg-emerald-600 p-4 transition-all duration-200"
         >
           {loadingState.sending ? (
             <Spinner size="small" color="$white" />

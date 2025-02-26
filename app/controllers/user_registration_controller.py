@@ -19,6 +19,7 @@ logger = setup_logger()
 class UserRegistrationController:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.user_db_controller = UserDBController(db)
 
     async def get_password_hash(self, password: str) -> str:
         return pwd_context.hash(password)
@@ -140,7 +141,7 @@ class UserRegistrationController:
 
             user_data = users.dict()
             logger.debug(f"User data before processing: {user_data}")
-
+            
             business_id = user_data.get("businessId")
             accode = ""
             if (business_id == 100000):
@@ -164,10 +165,8 @@ class UserRegistrationController:
             user_data.pop("confirm_password", None)  # Remove confirm_password if present
             logger.debug("Updated user data with hashed password and removed confirm_password.")
 
-            user_db = UserDBController(self.db)
             next_terminal = await self.user_db_controller.get_next_terminal()
-
-            print (users, "HERE IS BUSINESS ID")
+            logger.debug(f"Generated next terminal: {next_terminal}")
 
             new_user = ApiUsers(
                 username=users.user_name, 
@@ -175,7 +174,7 @@ class UserRegistrationController:
                 employee_name=users.user_name,
                 email=users.email,
                 mobile=users.mobile,
-                status="inactive",
+                status=users.status,
                 businessId=business_id,
                 employeeCode=users.user_id.upper(),
                 terminal=next_terminal,

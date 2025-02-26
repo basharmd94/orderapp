@@ -9,9 +9,9 @@ const TabBarIcon = ({ focused, color, icon: Icon }) => {
   return (
     <Box className="items-center justify-center">
       <Icon 
-        size={24} 
+        size={23} 
         color={color} 
-        strokeWidth={focused ? 2.5 : 1.5}
+        strokeWidth={focused ? 2 : 1.5}
       />
     </Box>
   );
@@ -27,7 +27,7 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#fff',
           height: 60,
-          paddingTop: 5,
+          paddingHorizontal: 8,
           borderTopWidth: 1,
           borderTopColor: '#f3f4f6',
         },
@@ -35,11 +35,12 @@ export default function TabLayout() {
           paddingVertical: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 10,
           fontWeight: '500',
         },
-        unmountOnBlur: true,
-        lazy: true,
+        // Fixing tab navigation performance
+        unmountOnBlur: false, // Keep screens mounted when switching tabs
+        lazy: true, // Still lazy load screens, but don't unmount them
       }}
     >
       <Tabs.Screen
@@ -54,9 +55,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="create-order"
         options={{
-          title: 'CreateOrder',
-          headerShown: true,
-          headerTitle: 'Create Order',  
+          title: 'Create',
+          headerShown: false,
+          headerTitle: 'Create',  
           headerStyle: {
             backgroundColor: "#DE7123", // Change to your desired color    
           },
@@ -84,8 +85,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="send-orders"
         options={{
-          title: 'SendOrders',
-          headerShown: true,
+          title: 'Send',
+          headerShown: false,
           headerTitle: 'Send Orders',
           
           headerTitleStyle: {

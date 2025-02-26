@@ -191,7 +191,7 @@ export default function ItemSelector({
               <Box className="mt-4">
                 <Input
                   size="md"
-                  className="bg-white border border-gray-200 rounded-xl shadow-sm"
+                  className="bg-white border border-gray-200 rounded-xl "
                 >
                   <InputField
                     ref={drawerInputRef}

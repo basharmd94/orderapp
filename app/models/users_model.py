@@ -103,6 +103,8 @@ class SessionHistory(Base):
 
     @validates('is_admin')
     def validate_is_admin(self, key, value):
+        if isinstance(value, bool):
+            return 'admin' if value else 'user'
         if value not in ['admin', 'user', '']:
             raise ValueError('is_admin must be either "admin", "user", or empty string')
         return value

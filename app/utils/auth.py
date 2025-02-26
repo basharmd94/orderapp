@@ -22,25 +22,30 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/users/login")
 async def update_session_activity(db: AsyncSession, username: str, token: str):
     """Update the last activity time for a session"""
     try:
-        session = await db.execute(
+        result = await db.execute(
             select(Logged).filter_by(username=username, access_token=token)
         )
-        session = session.scalar()
+        session = result.scalar_one_or_none()
         
         if session:
             session.zutime = datetime.utcnow()
             await db.commit()
+        else:
+            logger.warning(f"No active session found for user {username}")
+            
     except Exception as e:
         logger.error(f"Error updating session activity: {str(e)}")
         await db.rollback()
 
 async def session_activity_middleware(request: Request, call_next):
     """Middleware to update session activity timestamp"""
+    response = None
+    
     try:
-        # Skip activity update for certain paths
         if request.url.path in [
             "/api/v1/users/login", 
             "/api/v1/users/logout",
+            "/api/v1/users/refresh-token",
             "/api/v1/health",
             "/docs",
             "/redoc",
@@ -48,26 +53,17 @@ async def session_activity_middleware(request: Request, call_next):
         ]:
             return await call_next(request)
 
-        # Get the authorization header
         auth_header = request.headers.get("Authorization")
-        if (auth_header and auth_header.startswith("Bearer ")):
+        if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
             try:
-                # Decode token to get username
                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
                 username = payload.get("username")
                 
                 if username:
-                    # Get DB session - ensure we have a valid session
-                    db = None
-                    try:
-                        db = request.state.db
-                    except AttributeError:
-                        db = next(get_db())
-                    
-                    if db:
-                        # Update session activity
+                    async with AsyncSession(get_db()) as db:
                         await update_session_activity(db, username, token)
+                        
             except JWTError:
                 logger.warning("Invalid token in session activity update")
             except Exception as e:
@@ -75,8 +71,11 @@ async def session_activity_middleware(request: Request, call_next):
 
     except Exception as e:
         logger.error(f"Session middleware error: {str(e)}")
-
-    return await call_next(request)
+    
+    if response is None:
+        response = await call_next(request)
+    
+    return response
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),

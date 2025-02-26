@@ -8,7 +8,7 @@ import { TrendingUp } from 'lucide-react-native';
 import Animated from 'react-native-reanimated';
 
 const ChartCard = memo(({ title, subtitle, subtitleColor, children }) => (
-  <Animated.View className="bg-white rounded-3xl p-6 shadow-lg mb-6">
+  <Animated.View className="bg-white rounded-3xl p-6  mb-6">
     <VStack space="md">
       <HStack className="justify-between items-center">
         <VStack>

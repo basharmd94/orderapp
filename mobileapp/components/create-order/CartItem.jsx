@@ -29,7 +29,7 @@ export default function CartItem({ item, onRemove }) {
       <HStack
         justifyContent="space-between"
         alignItems="center"
-        className="p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+        className="p-3 bg-white rounded-lg "
       >
         <VStack space="2" flex={1}>
           <Text className="text-xs font-bold text-primary-50 italic">
