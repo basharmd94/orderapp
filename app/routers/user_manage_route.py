@@ -1,61 +1,36 @@
-from fastapi import APIRouter, HTTPException, status, Query, Depends, Request
-from schemas.customers_schema import CustomersSchema
-from schemas.user_schema import UserRegistrationSchema
-from typing import List, Union
-from typing_extensions import Annotated
-from utils.auth import get_current_normal_user, get_current_admin
-from utils.error import error_details
-from controllers.db_controllers.customers_db_controller import (
-    CustomersDBController,
-)
-from logs import setup_logger
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
+from controllers.db_controllers.user_manage_controller import UserManageController
+from schemas.user_manage_schema import UserStatusUpdate
+from utils.auth import get_current_admin
+from logs import setup_logger
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/user-manage",
+    tags=["User Management"],
+    dependencies=[Depends(get_current_admin)],  # All routes require admin access
+)
+
 logger = setup_logger()
 
-
-@router.get("/all/{zid}", response_model=List[CustomersSchema])
-async def get_all_customers(
-    request: Request,
-    zid: int,
-    customer: Annotated[
-        str,
-        Query(
-            min_length=3,
-            description="Put Customers ID, Customers Name or Area like CUS-001202 ",
-        ),
-    ],
-    employee_id : Annotated[ 
-        str,
-        Query(
-            min_length=3,
-            description="Put Employee ID, like SA--000015 ",
-        ),
-    ] ,
-    limit: int = 10,
-    offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+@router.delete("/{username}")
+async def delete_user(
+    username: str,
+    db: AsyncSession = Depends(get_db)
 ):
-    customers_db_controller = CustomersDBController(db)
+    """Delete a user and all their associated data"""
+    user_controller = UserManageController(db)
+    return await user_controller.delete_user(username)
 
-    try:
-        customers = await customers_db_controller.get_all_customers(
-            zid, customer, employee_id, limit, offset, current_user
-        )
-        return customers
-
-    except ValueError as e:
-        logger.error(f"Error getting Customer route: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException as e:
-        # Re-raise HTTP exceptions to preserve status code
-        raise e
-    except Exception as e:
-        logger.error(f"Unexpected error in get_all_customers: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while retrieving customers"
-        )
+@router.post("/status")
+async def update_user_status(
+    user_status: UserStatusUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a user's status (active/inactive)"""
+    user_controller = UserManageController(db)
+    return await user_controller.update_user_status(
+        username=user_status.username,
+        new_status=user_status.status
+    )

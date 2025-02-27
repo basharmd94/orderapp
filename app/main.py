@@ -18,6 +18,7 @@ from routers import (
     customers_route,
     orders_route,
     rbac_route,
+    user_manage_route,  # Add this import
 )
 from database import engine, Base, get_db
 from logs import setup_logger
@@ -308,6 +309,8 @@ router_configs = [
 # Include all routers
 for config in router_configs:
     app.include_router(**config)
+
+app.include_router(user_manage_route.router, prefix="/api/v1/admin", tags=["User Management"])  # Add this line
 
 # Development routes (should be disabled in production)
 if app.debug:

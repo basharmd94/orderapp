@@ -6,6 +6,9 @@ from utils.auth import get_current_normal_user
 from schemas.customers_schema import CustomersSchema
 from typing import List
 from fastapi import Depends, HTTPException, status
+from logs import setup_logger
+
+logger = setup_logger()
 
 class CustomersDBController:
     """Controller for handling customer-related database operations."""
@@ -162,3 +165,136 @@ class CustomersDBController:
         ]
 
         return customers
+
+    async def get_salesman_by_area(self, zid: int, area: str):
+        """Get salesman information for a specific area."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+        
+        try:
+            result = await self.db.execute(
+                select(
+                    Cacus.xsp,
+                    Cacus.xsp1,
+                    Cacus.xsp2,
+                    Cacus.xsp3
+                ).filter(
+                    Cacus.zid == zid,
+                    Cacus.xcity.ilike(f"%{area}%")
+                ).limit(1)  # Get first matching record
+            )
+            
+            salesman = result.first()
+            if not salesman:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No salesman found for area: {area} in zid: {zid}"
+                )
+
+            return dict(salesman)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting salesman info for area {area}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving salesman information"
+            )
+
+    async def update_salesman_by_area(self, zid: int, area: str, xsp: str = None, xsp1: str = None, xsp2: str = None, xsp3: str = None):
+        """Update salesman assignments for customers in a specific area."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+        
+        try:
+            # Build update values excluding None values
+            update_values = {}
+            if xsp is not None:
+                update_values["xsp"] = xsp
+            if xsp1 is not None:
+                update_values["xsp1"] = xsp1
+            if xsp2 is not None:
+                update_values["xsp2"] = xsp2
+            if xsp3 is not None:
+                update_values["xsp3"] = xsp3
+
+            if not update_values:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No salesman values provided for update"
+                )
+
+            # Execute update query
+            result = await self.db.execute(
+                Cacus.__table__.update()
+                .where(
+                    and_(
+                        Cacus.zid == zid,
+                        Cacus.xcity.ilike(f"%{area}%")
+                    )
+                )
+                .values(**update_values)
+            )
+
+            if result.rowcount == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No customers found in area: {area} for zid: {zid}"
+                )
+
+            await self.db.commit()
+            return {
+                "message": f"Successfully updated salesman assignments for area: {area}",
+                "updated_count": result.rowcount
+            }
+            
+        except HTTPException:
+            await self.db.rollback()
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error updating salesman assignments for area {area}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error updating salesman assignments"
+            )
+
+    async def get_areas_by_zid(self, zid: int, user_id: str = None):
+        """Get distinct areas for a business, optionally filtered by salesman ID."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+        
+        try:
+            # Build query based on whether user_id is provided
+            query = select(Cacus.xcity).distinct().filter(Cacus.zid == zid)
+            
+            if user_id:
+                query = query.filter(
+                    or_(
+                        Cacus.xsp == user_id,
+                        Cacus.xsp1 == user_id,
+                        Cacus.xsp2 == user_id,
+                        Cacus.xsp3 == user_id
+                    )
+                )
+            
+            result = await self.db.execute(query)
+            areas = [row[0] for row in result.fetchall() if row[0]]  # Filter out None values
+            
+            if not areas:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No areas found for zid: {zid}" + (f" and user_id: {user_id}" if user_id else "")
+                )
+
+            return {"areas": areas}
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting areas for zid {zid}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving areas"
+            )
