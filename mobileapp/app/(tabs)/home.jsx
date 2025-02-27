@@ -1,5 +1,5 @@
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ScrollView, RefreshControl, Dimensions } from "react-native";
+import { ScrollView, RefreshControl, Dimensions, Platform } from "react-native";
 import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { ButtonText, ButtonIcon } from "@/components/ui/button";
@@ -263,24 +263,29 @@ const Home = () => {
       >
         <Box className="px-4 py-4">
           {/* Enhanced Header Section */}
-          <Box className="bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 rounded-3xl p-6 shadow-xl mb-6">
+          <Box 
+            className="bg-gray-800 rounded-3xl p-6 mb-6"
+            style={{
+              elevation: Platform.OS === 'android' ? 5 : 0,
+            }}
+          >
             <VStack space="md">
               <HStack className="justify-between items-start">
                 <VStack space="xs">
-                  <Text className="text-white/90 text-base font-medium">
+                  <Text className="text-white text-base font-medium">
                     {getTimeOfDay()},
                   </Text>
                   <Heading size="xl" className="text-white">
-                    {user?.employee_name || user?.user_name || 'User'}
+                    {user?.employee_name || user?.username || 'User'}
                   </Heading>
                   <HStack space="sm" className="items-center mt-1">
-                    <Box className="bg-white/20 px-3 py-1 rounded-full">
-                      <Text className="text-white/90 text-xs">
+                    <Box className="bg-white/30 px-3 py-1 rounded-full">
+                      <Text className="text-white text-xs">
                         Terminal: {user?.terminal || 'N/A'}
                       </Text>
                     </Box>
-                    <Box className="bg-white/20 px-3 py-1 rounded-full">
-                      <Text className="text-white/90 text-xs">
+                    <Box className="bg-white/30 px-3 py-1 rounded-full">
+                      <Text className="text-white text-xs">
                         ID: {user?.user_id || 'N/A'}
                       </Text>
                     </Box>
@@ -289,14 +294,7 @@ const Home = () => {
                 <HStack space="sm">
                   <Avatar 
                     size="lg" 
-                    className="bg-white/20 border-2 border-white/30"
-                    style={{
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 8,
-                      elevation: 5,
-                    }}
+                    className="border-2 border-white bg-white/30"
                   >
                     <AvatarFallbackText className="text-white">
                       {getInitials(user?.employee_name || 'User')}
@@ -306,29 +304,36 @@ const Home = () => {
                     variant="solid"
                     size="sm"
                     onPress={logout}
-                    className="bg-white/20 border border-white/30 self-start mt-1"
+                    className="bg-white/30 self-start mt-1"
                   >
                     <ButtonIcon as={LogOut} size={18} className="text-white" />
                   </Button>
                 </HStack>
               </HStack>
 
-              <HStack className="justify-between items-center mt-4 bg-white/10 p-4 rounded-2xl backdrop-blur-lg">
-                <VStack>
-                  <Text className="text-white/80 text-xs">Business ID</Text>
-                  <Text className="text-white font-bold">{user?.businessId || 'N/A'}</Text>
-                </VStack>
-                <Box className="w-[1px] h-8 bg-white/20" />
-                <VStack>
-                  <Text className="text-white/80 text-xs">Role</Text>
-                  <Text className="text-white font-bold capitalize">{user?.is_admin || 'User'}</Text>
-                </VStack>
-                <Box className="w-[1px] h-8 bg-white/20" />
-                <VStack>
-                  <Text className="text-white/80 text-xs">Status</Text>
-                  <Text className="text-white font-bold capitalize">{user?.status || 'N/A'}</Text>
-                </VStack>
-              </HStack>
+              {/* User info card with gray-800 matching the Total Orders card */}
+              <Box className="mt-4 bg-orange-500 p-4 rounded-2xl">
+                <HStack className="justify-between items-center">
+                  <Box className="items-start">
+                    <Text className="text-white/80 text-xs">Business ID</Text>
+                    <Text className="text-white font-bold">{user?.businessId || 'N/A'}</Text>
+                  </Box>
+                  
+                  <Box className="w-[1px] h-8 bg-white/30" />
+                  
+                  <Box className="items-center">
+                    <Text className="text-white/80 text-xs">Role</Text>
+                    <Text className="text-white font-bold">{user?.is_admin || 'User'}</Text>
+                  </Box>
+                  
+                  <Box className="w-[1px] h-8 bg-white/30" />
+                  
+                  <Box className="items-end">
+                    <Text className="text-white/80 text-xs">Status</Text>
+                    <Text className="text-white font-bold">{user?.status || 'N/A'}</Text>
+                  </Box>
+                </HStack>
+              </Box>
             </VStack>
           </Box>
 
@@ -346,7 +351,7 @@ const Home = () => {
                 className="border-primary-100 bg-primary-50"
               >
                 <HStack space="xs" className="items-center px-1">
-                  <RefreshCw size={14} className="text-primary-500" />
+                  <RefreshCw size={14} color = 'black' />
                   <ButtonText className="text-primary-500 text-sm">Refresh</ButtonText>
                 </HStack>
               </Button>
@@ -360,7 +365,7 @@ const Home = () => {
               }}
             >
               {stats.map((stat, index) => (
-                <StatsCard key={index} stat={stat} />
+                <StatsCard key={index} stat={stat} index={index} />
               ))}
             </ScrollView>
           </VStack>
@@ -456,7 +461,7 @@ const Home = () => {
           </VStack>
 
           {/* Quick Actions */}
-          <VStack space="md" className="mb-6">
+          <VStack space="md">
             <HStack className="justify-between items-center mb-4">
               <VStack>
                 <Heading size="sm" className="text-gray-800">Quick Actions</Heading>
@@ -469,7 +474,7 @@ const Home = () => {
               >
                 <HStack space="xs" className="items-center">
                   <Text className="text-primary-500 text-sm">View All</Text>
-                  <ChevronRight size={16} className="text-primary-500" />
+                  <ChevronRight size={16} color = "gray" />
                 </HStack>
               </Button>
             </HStack>
@@ -478,6 +483,7 @@ const Home = () => {
                 <QuickActionCard key={index} action={action} />
               ))}
             </HStack>
+            
           </VStack>
         </Box>
       </ScrollView>
@@ -486,3 +492,5 @@ const Home = () => {
 };
 
 export default Home;
+
+

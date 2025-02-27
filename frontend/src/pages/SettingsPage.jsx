@@ -86,7 +86,7 @@ const SettingsPage = () => {
                 <ListItem>
                   <ListItemText 
                     primary="Username"
-                    secondary={user?.user_name}
+                    secondary={user?.username}
                   />
                 </ListItem>
                 <ListItem>

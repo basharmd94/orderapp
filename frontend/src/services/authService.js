@@ -26,5 +26,17 @@ export const authService = {
   getCurrentUser: async () => {
     const response = await apiClient.get('/users/me');
     return response.data;
+  },
+
+  getUserSessions: async () => {
+    const response = await apiClient.get('/users/sessions');
+    return response.data;
+  },
+
+  logoutAllSessions: async (keepCurrent = false) => {
+    const response = await apiClient.post('/users/logout/all', null, {
+      params: { keep_current: keepCurrent }
+    });
+    return response.data;
   }
 };

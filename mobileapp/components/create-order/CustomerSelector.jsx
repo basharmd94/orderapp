@@ -22,7 +22,7 @@ const CustomerCard = ({ customer, onSelect }) => (
     activeOpacity={0.7}
     className="mx-4 my-2"
   >
-    <View className="bg-white rounded-2xl border border-gray-200 shadow-lg p-4">
+    <View className="bg-white rounded-2xl border border-gray-200  p-4">
       <View className="flex-row items-center">
         <View className="bg-warning-50 p-3 rounded-xl mr-3">
           <Building size={20} className = "text-warning-500" />
@@ -196,7 +196,7 @@ export default function CustomerSelector({
               <Box className="mt-4">
                 <Input
                   size="sm"
-                  className="bg-white border border-gray-200 rounded-xl shadow-sm w-full h-10"
+                  className="bg-white border border-gray-200 rounded-xl  w-full h-10"
                 >
                   <InputField
                     ref={drawerInputRef}

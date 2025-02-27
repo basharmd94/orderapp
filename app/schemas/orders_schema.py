@@ -7,13 +7,13 @@ class Item(BaseModel):
     xitem: str
     xdesc: str
     xqty: int
-    xprice: int
+    xprice: float  # Changed from int to float
     xroword: int
     xdate: str
     xsl: str
     xlat: Union[float, None] = Field(default=None)
     xlong: Union[float, None] = Field(default=None)
-    xlinetotal: int
+    xlinetotal: float  # Changed from int to float to handle decimal prices
 
 
 class OpmobSchema(BaseModel):
@@ -32,7 +32,7 @@ class OpmobResponse(BaseModel):
     xqty: int
     xlat: Optional[float] = None
     xlong: Optional[float] = None
-    xlinetotal: int
+    xlinetotal: float  # Changed to float
     xtra1: Optional[int] = None
     xtra2: Optional[float] = None
     xprice: float

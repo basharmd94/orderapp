@@ -20,7 +20,7 @@ const LastDaysOrders = () => (
 
 const LatestOrders = () => {
   return (
-    <SafeAreaView className="bg-gray-100 flex-1 ">
+    <SafeAreaView className="bg-white flex-1 ">
       <Tab.Navigator
         screenOptions={{
           tabBarLabelStyle: { fontSize: 14, fontWeight: "bold" },

@@ -10,8 +10,6 @@ from utils.error import error_details
 from logs import setup_logger
 from passlib.context import CryptContext
 
-
-
 # Initialize password hashing context
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -20,8 +18,19 @@ logger = setup_logger()
 
 class UserRegistrationController:
     def __init__(self, db: AsyncSession):
-        self.db = db  # Use the session passed in from the route handler
+        self.db = db
         self.user_db_controller = UserDBController(db)
+
+    async def get_password_hash(self, password: str) -> str:
+        return pwd_context.hash(password)
+
+    async def validate_password(self, password: str):
+        if len(password) < 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 4 characters long"
+            )
+        return True
 
     async def check_exists(self, model, attribute, value, error_message):
         try:
@@ -51,38 +60,52 @@ class UserRegistrationController:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error checking existence of {attribute}: {str(e)}\n{traceback.format_exc()}")
+            # logger.error(f"Error checking existence of {attribute}: {str(e)}\n{traceback.format_exc()}")
+            logger.error(f"Error checking existence of {attribute}: ")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Internal server error during existence check",
             )
 
     async def check_user_id_in_prmst(self, user_id: str):
+        """
+        Check if a normalized user ID exists in the Prmst table.
+        Raises an HTTPException if the user ID is not found or if an error occurs.
+        """
         try:
+            # Normalize the user ID
             normalized_user_id = user_id.strip().lower()
             logger.debug(f"Checking if user_id '{normalized_user_id}' exists in Prmst...")
+
+            # Build and execute the query
             query = select(Prmst).filter(func.lower(Prmst.xemp) == normalized_user_id)
             logger.debug(f"Executing query: {query}")
             result = await self.db.execute(query)
             prmst_user = result.scalars().first()
-            logger.debug(f"Result of Prmst check for xemp='{normalized_user_id}': {prmst_user is not None}")
 
+            # Log the result of the query
+            logger.debug(f"Result of Prmst check for xemp='{normalized_user_id}': {'Found' if prmst_user else 'Not Found'}")
+
+            # Raise an exception if the user ID is not found
             if not prmst_user:
                 error_msg = "You have no ID in employee table"
-                logger.error(error_msg)
+                logger.error(f"User ID '{normalized_user_id}' not found in Prmst: {error_msg}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_details(error_msg),
                 )
+
         except HTTPException:
+            # Re-raise HTTP exceptions directly
             raise
+
         except Exception as e:
-            logger.error(f"Error checking user ID in Prmst: {str(e)}\n{traceback.format_exc()}")
+            # Log unexpected errors with sufficient context
+            logger.error(f"Unexpected error while checking user ID '{normalized_user_id}' in Prmst: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Internal server error during user ID check",
             )
-
     async def check_username_exists(self, username: str):
         await self.check_exists(
             model=ApiUsers,
@@ -107,12 +130,9 @@ class UserRegistrationController:
             error_message="Email already registered in registration table",
         )
 
-    def hash_password(self, password: str) -> str:
-        return pwd_context.hash(password)
-
     async def register_user(self, users: UserRegistrationSchema):
         try:
-            normalized_username = users.user_name.strip().lower()
+            normalized_username = users.username.strip().lower()
             normalized_email = users.email.strip().lower()
             normalized_user_id = users.user_id.strip().lower()
 
@@ -120,21 +140,22 @@ class UserRegistrationController:
             logger.debug(f"Normalized Email: '{normalized_email}'")
             logger.debug(f"Normalized User ID: '{normalized_user_id}'")
 
-            users.user_name = normalized_username
+            users.username = normalized_username
             users.email = normalized_email
             users.user_id = normalized_user_id
 
             await self.check_user_id_in_prmst(users.user_id)
-            await self.check_username_exists(users.user_name)
+            await self.check_username_exists(users.username)
             await self.check_email_exists(users.email)
             await self.check_employeeCode_exist_in_apiusers(users.user_id)
 
-            hashed_password = self.hash_password(users.password)
+            await self.validate_password(users.password)
+            hashed_password = await self.get_password_hash(users.password)
             logger.debug("Password hashed successfully.")
 
             user_data = users.dict()
             logger.debug(f"User data before processing: {user_data}")
-
+            
             business_id = user_data.get("businessId")
             accode = ""
             if (business_id == 100000):
@@ -158,18 +179,16 @@ class UserRegistrationController:
             user_data.pop("confirm_password", None)  # Remove confirm_password if present
             logger.debug("Updated user data with hashed password and removed confirm_password.")
 
-            user_db = UserDBController(self.db)
             next_terminal = await self.user_db_controller.get_next_terminal()
-
-            print (users, "HERE IS BUSINESS ID")
+            logger.debug(f"Generated next terminal: {next_terminal}")
 
             new_user = ApiUsers(
-                username=users.user_name, 
+                username=users.username, 
                 password=hashed_password,
-                employee_name=users.user_name,
+                employee_name=users.username,
                 email=users.email,
                 mobile=users.mobile,
-                status="inactive",
+                status=users.status,
                 businessId=business_id,
                 employeeCode=users.user_id.upper(),
                 terminal=next_terminal,

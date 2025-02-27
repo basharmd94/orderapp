@@ -2,6 +2,10 @@ from pydantic import BaseModel
 from typing import List
 from datetime import date
 
+class BaseResponse(BaseModel):
+    """Base response model with a message field"""
+    message: str
+
 class MonthlyOrderStats(BaseModel):
     month: int
     year: int

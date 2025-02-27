@@ -1,5 +1,5 @@
 import traceback
-from fastapi import APIRouter, status, Depends, HTTPException, Request
+from fastapi import APIRouter, status, Depends, HTTPException, Request, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from controllers.user_registration_controller import UserRegistrationController
 from controllers.user_login_controller import UserLoginController
@@ -8,13 +8,15 @@ from schemas.user_schema import UserRegistrationSchema, UserOutSchema
 from logs import setup_logger
 from utils.auth import (
     get_current_user, get_current_admin,
-    validate_password, create_access_token, blacklist_token,
-    is_token_blacklisted
+    oauth2_scheme
+)
+from utils.token_utils import (
+    create_access_token, blacklist_token,
+    is_token_blacklisted, SECRET_KEY, ALGORITHM
 )
 from typing import Annotated, List
 from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.auth import get_current_user, get_current_admin, oauth2_scheme
 from jose import jwt, JWTError
 from sqlalchemy.future import select
 from models.users_model import Logged, TokenBlacklist, ApiUsers
@@ -24,13 +26,6 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is not set")
-if not ALGORITHM:
-    raise ValueError("ALGORITHM environment variable is not set")
 
 router = APIRouter()
 logger = setup_logger()
@@ -42,12 +37,9 @@ async def user_registration(
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        # Validate password
-        await validate_password(user_data.password)
-        
         user_registration_controller = UserRegistrationController(db)
         result = await user_registration_controller.register_user(user_data)
-        logger.info(f"User {user_data.user_name} registered successfully from {request.client.host}")
+        logger.info(f"User {user_data.username} registered successfully from {request.client.host}")
         return result
     except Exception as e:
         logger.error(f"Registration error: {str(e)}\n{traceback.format_exc()}")
@@ -85,8 +77,8 @@ async def logout(
 ):
     try:
         user_login_controller = UserLoginController(db)
-        logger.debug(f"Logging out user: {current_user.user_name}")
-        return await user_login_controller.user_logout(token, current_user.user_name)
+        logger.debug(f"Logging out user: {current_user.username}")
+        return await user_login_controller.user_logout(token, current_user.username)
     except Exception as e:
         logger.debug(f"Logging out user: {current_user}")
         logger.error(f"Logout error: {str(e)}\n{traceback.format_exc()}")
@@ -100,16 +92,20 @@ async def logout(
 @router.post("/refresh-token")
 async def refresh_token(
     request: Request,
-    refresh_token: str = None,  # Make refresh_token optional in route signature
+    refresh_token: str = None,
     db: AsyncSession = Depends(get_db)
-):
+    ):
     try:
-        # Get refresh token from query params
+        # Get refresh token from query params or form data
         refresh_token = request.query_params.get('refresh_token')
+        if not refresh_token:
+            form_data = await request.form()
+            refresh_token = form_data.get('refresh_token')
+            
         if not refresh_token:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="refresh_token query parameter is required"
+                detail="refresh_token is required"
             )
 
         # Check if token is blacklisted
@@ -119,7 +115,6 @@ async def refresh_token(
                 detail="Refresh token has been revoked"
             )
 
-        # Verify refresh token
         try:
             payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
         except jwt.ExpiredSignatureError:
@@ -130,7 +125,7 @@ async def refresh_token(
         except JWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token"
+                detail="Invalid refresh token format"
             )
 
         username = payload.get("username")
@@ -140,30 +135,31 @@ async def refresh_token(
                 detail="Invalid token payload"
             )
         
-        # Verify session exists
-        logged_user = await db.execute(
-            select(Logged).filter_by(username=username)
+        # Verify active session exists
+        result = await db.execute(
+            select(Logged).filter_by(
+                username=username,
+                refresh_token=refresh_token,
+                status="Logged In"
+            )
         )
-        logged_user = logged_user.scalars().first()
+        logged_user = result.scalar_one_or_none()
         
-        if not logged_user or logged_user.refresh_token != refresh_token:
+        if not logged_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid session"
+                detail="No active session found"
             )
-        
-        # Generate new access token with all necessary claims
-        business_id = payload.get("businessId")
-        if isinstance(business_id, list):
-            business_id = business_id[0] if business_id else None
-            
+
+        # Generate new access token
         token_data = {
             "username": username,
             "accode": payload.get("accode"),
             "status": payload.get("status"),
             "user_id": payload.get("user_id"),
             "is_admin": payload.get("is_admin"),
-            "businessId": int(business_id) if business_id is not None else None
+            "terminal": payload.get("terminal"),
+            "businessId": payload.get("businessId")
         }
         
         new_access_token = await create_access_token(data=token_data)
@@ -180,10 +176,10 @@ async def refresh_token(
             "token_type": "bearer"
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Token refresh error: {str(e)}\n{traceback.format_exc()}")
-        if isinstance(e, HTTPException):
-            raise e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unexpected error during token refresh"
@@ -198,7 +194,7 @@ async def get_current_user_info(
     try:
         # Query to get full user details from database
         user_db = UserDBController(db)
-        user = await user_db.get_user_by_username(current_user.user_name)
+        user = await user_db.get_user_by_username(current_user.username)
         
         if not user:
             raise HTTPException(
@@ -208,7 +204,7 @@ async def get_current_user_info(
             
         return UserOutSchema(
             user_id=user.employeeCode,
-            user_name=user.username,
+            username=user.username,
             email=user.email,
             mobile=user.mobile,
             status=user.status,
@@ -223,3 +219,26 @@ async def get_current_user_info(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not get user information"
         )
+
+@router.get("/sessions", response_model=list)
+async def get_user_sessions(
+    current_user: UserOutSchema = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all active sessions for the current user"""
+    user_login_controller = UserLoginController(db)
+    return await user_login_controller.get_user_sessions(current_user.username)
+
+@router.post("/logout/all")
+async def logout_all_sessions(
+    keep_current: bool = Query(default=False, description="Keep the current session active"),
+    current_user: UserOutSchema = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    """Logout from all sessions"""
+    user_login_controller = UserLoginController(db)
+    return await user_login_controller.logout_all_sessions(
+        current_user.username,
+        except_token=token if keep_current else None
+    )

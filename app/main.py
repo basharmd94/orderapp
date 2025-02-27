@@ -7,7 +7,8 @@ import logging
 import os
 from dotenv import load_dotenv
 import json
-import traceback
+from sqlalchemy import inspect
+from contextlib import asynccontextmanager
 
 # Local imports
 from routers import (
@@ -16,11 +17,11 @@ from routers import (
     users_route,
     customers_route,
     orders_route,
-    test_route,
-    test_post_route 
+    rbac_route,
 )
-from database import engine, Base
+from database import engine, Base, get_db
 from logs import setup_logger
+from utils.auth import session_activity_middleware
 
 # Configure logging
 logger = setup_logger()
@@ -107,8 +108,47 @@ tags_metadata = [
     },
 ]
 
+
+
+# Function to create tables asynchronously
+async def create_database():
+    """Create all tables in the database asynchronously if they don't already exist."""
+    async with engine.begin() as conn:
+        # Use conn.run_sync to run synchronous inspection logic
+        existing_tables = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).get_table_names()
+        )
+        if not existing_tables:  # Only create tables if none exist
+            logger.info("Creating database tables...")
+            await conn.run_sync(Base.metadata.create_all)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events."""
+    try:
+        logger.info("Starting up application...")
+        await create_database()
+        logger.info("Database tables created successfully.")
+        yield  # Application runs here
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
+    finally:
+        try:
+            logger.info("Shutting down application...")
+            await engine.dispose()
+            logger.info("Application shutdown completed.")
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+
+
+
+
+
+
 # Initialize FastAPI app
 app = FastAPI(
+    lifespan=lifespan,
     title="HMBR Mobile Apps API",
     description=description,
     version="1.0.0",
@@ -144,6 +184,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add session activity middleware with database dependency
+@app.middleware("http")
+async def add_db_to_request(request: Request, call_next):
+    # Set database session in request state
+    async for db in get_db():
+        request.state.db = db
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            await db.close()
+
+# Add session activity middleware after database middleware
+@app.middleware("http")
+async def activity_middleware(request: Request, call_next):
+    return await session_activity_middleware(request, call_next)
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -240,6 +297,12 @@ router_configs = [
         "tags": ["Orders"],
         "responses": {400: {"description": "Invalid order data"}},
     },
+    {
+        "router": rbac_route.router,
+        "prefix": f"{API_PREFIX}/rbac",
+        "tags": ["RBAC"],
+        "responses": {403: {"description": "Insufficient permissions"}},
+    },
 ]
 
 # Include all routers
@@ -259,33 +322,6 @@ if app.debug:
         tags=["Development"],
     )
 
-# Function to create tables asynchronously
-async def create_database():
-    """Create all tables in the database asynchronously.
-
-    This function creates all tables in the database using the metadata
-    defined in the Base class. It is an asynchronous function and should be
-    used with the `asyncio` library.
-
-    Example:
-        async def main():
-            await create_database()
-
-        asyncio.run(main())
-    """
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-@app.on_event("startup")
-async def startup_event():
-    await create_database()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Execute shutdown tasks."""
-    logger.info("Shutting down application...")
-    await engine.dispose()
-    logger.info("Application shutdown completed")
 
 # Root endpoint
 @app.get("/", tags=["Root"])

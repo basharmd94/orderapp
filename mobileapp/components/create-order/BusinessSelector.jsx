@@ -17,7 +17,7 @@ const BusinessCard = ({ name, id, onSelect }) => (
   <Button
     variant="outline"
     onPress={onSelect}
-    className="mx-4 my-2 p-0 h-auto bg-white border border-gray-200 rounded-2xl shadow-lg"
+    className="mx-4 my-2 p-0 h-auto bg-white border border-gray-200 rounded-2xl"
   >
     <View className="p-4 w-full">
       <View className="flex-row items-center">

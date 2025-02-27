@@ -1,19 +1,20 @@
 from pydantic import BaseModel, validator
 from typing import List
 from passlib.context import CryptContext
+from typing import Union
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 class UserBase(BaseModel):
-    user_name: str
-    email: str | None = None
-    mobile: str | None = None
-    status: str | None = "active"
-    businessId: int | None = None
-    terminal: str | None = None
-    accode: str | None = None
-    is_admin: str | None = "user"  # Changed from bool to str with default "user"
-    employee_name: str | None = None
+    username: str  # Changed from user_name to username to match database model
+    email: Union[str, None] = None
+    mobile: Union[str, None] = None
+    status: Union[str, None] = "active"
+    businessId: Union[int, None] = None
+    terminal: Union[str, None] = None
+    accode: Union[str, None] = None
+    is_admin: Union[str, None] = "user"  # Changed from bool to str with default "user"
+    employee_name: Union[str, None] = None
 
     @validator('businessId', pre=True)
     def validate_business_id(cls, v):
@@ -44,8 +45,8 @@ class UserBase(BaseModel):
 
 class UserRegistrationSchema(UserBase):
     password: str
-    confirm_password: str | None = None
-    user_id: str | None = None
+    confirm_password: Union [str, None] = None
+    user_id: Union [str, None] = None
 
     @validator('confirm_password')
     def passwords_match(cls, v, values, **kwargs):
@@ -58,7 +59,7 @@ class UserRegistrationSchema(UserBase):
             "examples": [
                 {
                     "user_id": "IT--000010",
-                    "user_name": "basharmd91",
+                    "username": "basharmd91",
                     "mobile": "01675373799",
                     "email": "mat197197@gmail.com",
                     "status": "active",
@@ -99,17 +100,17 @@ class UserLoginSchema(BaseModel):
 class TokenSchema(BaseModel):
     access_token: str
     token_type: str
-    refresh_token: str | None = None
-    expires_in: int | None = None
+    refresh_token: Union [str, None] = None
+    expires_in: Union [str, None] = None
 
 class TokenPayload(BaseModel):
-    username: str | None = None
-    exp: int | None = None
+    username:  Union [str, None] = None
+    exp: Union [int, None] = None
 
 class UserRegistrationResponse(BaseModel):
     username: str
     email: str
-    mobile: str | None = None
+    mobile: Union [str, None] = None
     status: str
     businessId: int
     employeeCode: str

@@ -25,7 +25,7 @@ const LoadingState = () => {
   return (
     <Box className="px-4 py-4">
       {/* Header Skeleton */}
-      <Box className="bg-gradient-to-br from-primary-500/20 to-primary-600/20 rounded-3xl p-6 shadow-sm mb-6 relative overflow-hidden">
+      <Box className="bg-gradient-to-br from-primary-500/20 to-primary-600/20 rounded-3xl p-6  mb-6 relative overflow-hidden">
         <HStack className="justify-between items-start">
           <VStack space="xs">
             <Animated.View style={animatedStyle}>

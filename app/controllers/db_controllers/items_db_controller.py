@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from models.items_model import Caitem, Imtrn, Opspprc
-from controllers.db_controllers.database_controller import DatabaseController
 from schemas.items_schema import ItemsBaseSchema, ItemsSchema
 from sqlalchemy import func, or_, and_
 from sqlalchemy.sql.functions import coalesce
@@ -17,7 +16,7 @@ class ItemsDBController:
         self.db = db  # Use the session passed in from the route handler
 
     async def get_all_items(
-        self, zid: int, item_name: str | None, limit: int, offset: int
+        self, zid: int, item_name: Union[str, None], limit: int, offset: int
     ) -> List[ItemsSchema]:
         if self.db is None:
             raise Exception("Database session not initialized.")

@@ -33,10 +33,17 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4719d9e0-be1e-4672-b0a1-a0e76cb27d72"
+      }
+    },
+    "owner": "basharmd93"
   }
 }
