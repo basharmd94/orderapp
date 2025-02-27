@@ -82,7 +82,7 @@ async def get_all_customers(
     xsp1: Annotated[Union[str, None], Query(min_length=3)] = None,
     xsp2: Annotated[Union[str, None], Query(min_length=3)] = None,
     xsp3: Annotated[Union[str, None], Query(min_length=3)] = None,
-    current_user: UserRegistrationSchema = Depends(get_current_admin),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
     db: AsyncSession = Depends(get_db),
 ):
 

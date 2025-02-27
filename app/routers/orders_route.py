@@ -10,6 +10,7 @@ from schemas.orders_schema import OpmobSchema, BulkOpmobSchema, OpmobResponse
 from schemas.user_schema import UserRegistrationSchema
 from logs import setup_logger
 from utils.auth import get_current_normal_user
+from utils.permissions import has_permission
 from controllers.db_controllers.orders_db_controller import OrderDBController
 import traceback
 from datetime import datetime
@@ -151,6 +152,7 @@ async def handle_order_creation(
     summary="Create a new order",
     description="Creates a new order with the given items for a specific customer"
 )
+@has_permission("order.create")  # Apply permission check
 async def create_order(
     request: Request,
     order: OpmobSchema,
@@ -166,6 +168,7 @@ async def create_order(
     summary="Create multiple orders in bulk",
     description="Creates multiple orders at once for different customers using concurrent processing"
 )
+# @has_permission("order.bulk_create")  # Apply permission check for bulk operations
 async def create_bulk_order(
     request: Request,
     orders_data: BulkOpmobSchema,

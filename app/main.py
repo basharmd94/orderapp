@@ -17,6 +17,7 @@ from routers import (
     users_route,
     customers_route,
     orders_route,
+    rbac_route,
 )
 from database import engine, Base, get_db
 from logs import setup_logger
@@ -295,6 +296,12 @@ router_configs = [
         "prefix": f"{API_PREFIX}/order",
         "tags": ["Orders"],
         "responses": {400: {"description": "Invalid order data"}},
+    },
+    {
+        "router": rbac_route.router,
+        "prefix": f"{API_PREFIX}/rbac",
+        "tags": ["RBAC"],
+        "responses": {403: {"description": "Insufficient permissions"}},
     },
 ]
 

@@ -39,7 +39,7 @@ async def user_registration(
     try:
         user_registration_controller = UserRegistrationController(db)
         result = await user_registration_controller.register_user(user_data)
-        logger.info(f"User {user_data.user_name} registered successfully from {request.client.host}")
+        logger.info(f"User {user_data.username} registered successfully from {request.client.host}")
         return result
     except Exception as e:
         logger.error(f"Registration error: {str(e)}\n{traceback.format_exc()}")
@@ -77,8 +77,8 @@ async def logout(
 ):
     try:
         user_login_controller = UserLoginController(db)
-        logger.debug(f"Logging out user: {current_user.user_name}")
-        return await user_login_controller.user_logout(token, current_user.user_name)
+        logger.debug(f"Logging out user: {current_user.username}")
+        return await user_login_controller.user_logout(token, current_user.username)
     except Exception as e:
         logger.debug(f"Logging out user: {current_user}")
         logger.error(f"Logout error: {str(e)}\n{traceback.format_exc()}")
@@ -194,7 +194,7 @@ async def get_current_user_info(
     try:
         # Query to get full user details from database
         user_db = UserDBController(db)
-        user = await user_db.get_user_by_username(current_user.user_name)
+        user = await user_db.get_user_by_username(current_user.username)
         
         if not user:
             raise HTTPException(
@@ -204,7 +204,7 @@ async def get_current_user_info(
             
         return UserOutSchema(
             user_id=user.employeeCode,
-            user_name=user.username,
+            username=user.username,
             email=user.email,
             mobile=user.mobile,
             status=user.status,
@@ -227,7 +227,7 @@ async def get_user_sessions(
 ):
     """Get all active sessions for the current user"""
     user_login_controller = UserLoginController(db)
-    return await user_login_controller.get_user_sessions(current_user.user_name)
+    return await user_login_controller.get_user_sessions(current_user.username)
 
 @router.post("/logout/all")
 async def logout_all_sessions(
@@ -239,6 +239,6 @@ async def logout_all_sessions(
     """Logout from all sessions"""
     user_login_controller = UserLoginController(db)
     return await user_login_controller.logout_all_sessions(
-        current_user.user_name,
+        current_user.username,
         except_token=token if keep_current else None
     )

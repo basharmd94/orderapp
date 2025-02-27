@@ -1,15 +1,14 @@
 from sqlalchemy import Column, Integer, String, DateTime, func
-from sqlalchemy.orm import validates
+from sqlalchemy.orm import validates, relationship
 from sqlalchemy import event
 from database import Base
 from datetime import datetime
+from models.permissions_model import user_role
 
 from logs import setup_logger
 import traceback
 
 # apiUsers table
-
-
 logger = setup_logger()
 
 class ApiUsers(Base):
@@ -27,26 +26,9 @@ class ApiUsers(Base):
     is_admin = Column(String)  # Must contain 'admin', 'user', or empty string
     status = Column(String)
     accode = Column(String)  # This limits the column to 50 characters
-
-#     @validates('is_admin')
-#     def validate_is_admin(self, key, value):
-#         if isinstance(value, bool):
-#             return 'admin' if value else 'user'
-#         if value not in ['admin', 'user', '']:
-#             raise ValueError(f"is_admin must be 'admin', 'user', or '', got {value} of type {type(value)}")
-#         return value
-
-# @event.listens_for(ApiUsers.is_admin, 'set', retval=True)
-# def receive_set(target, value, oldvalue, initiator):
-#     logger.debug(f"Setting is_admin value: {value} (type: {type(value)})")
-#     logger.debug(f"Previous is_admin value: {oldvalue} (type: {type(oldvalue)})")
-#     logger.debug(f"Stack trace for is_admin setting:\n{traceback.format_stack()}")
     
-#     if isinstance(value, bool):
-#         new_value = 'admin' if value else 'user'
-#         logger.warning(f"Converting boolean is_admin value {value} to string: {new_value}")
-#         return new_value
-#     return value
+    # Relationship to roles
+    roles = relationship("Role", secondary=user_role, back_populates="users")
 
 # logged table
 class Logged(Base):
