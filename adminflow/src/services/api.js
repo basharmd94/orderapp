@@ -18,6 +18,14 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Ensure proper content type for different request types
+    if (config.data instanceof FormData) {
+      config.headers['Content-Type'] = 'multipart/form-data';
+    } else if (config.data instanceof URLSearchParams) {
+      config.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    } else {
+      config.headers['Content-Type'] = 'application/json';
+    }
     return config;
   },
   (error) => {
@@ -27,7 +35,10 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // Access the response data directly
+    return response.data;
+  },
   async (error) => {
     // Don't retry if we're already trying to refresh
     if (error.config?.url?.includes('/refresh-token')) {
@@ -45,7 +56,13 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    if (error.response?.status === 401 && error.response?.data?.detail === "Could not validate credentials") {
+      removeToken();
+      removeRefreshToken();
+      window.location.href = '/pages/login';
+    }
+
+    return Promise.reject(error?.response?.data || error);
   }
 );
 

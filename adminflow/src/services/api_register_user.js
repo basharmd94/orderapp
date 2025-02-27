@@ -1,10 +1,9 @@
 import axios from 'axios';
-
-const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+import { API_BASE_URL } from '../config';
 
 export const registerUser = async (userData) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/users/registration`, userData);
+    const response = await axios.post(`${API_BASE_URL}/admin/users/registration`, userData);
     return {
       success: true,
       data: response.data

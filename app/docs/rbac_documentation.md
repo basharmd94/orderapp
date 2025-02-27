@@ -171,3 +171,22 @@ async def delete_order():
 3. Follow the principle of least privilege
 4. Use meaningful permission codenames (resource.action)
 5. Document custom roles and their permissions
+
+
+
+now in AreaDistribution  i need
+
+zid : CustomAutocomplete (ID will be 100000,100001,100005)
+Select Area:  CustomAutocomplete box for select area
+here data will come from 
+
+/api/v1/customers/get-area-by-zid endpoint
+
+when select the zid then related area according to zid will show in Select Area CustomAutocomplete box (set loading untill data comes)
+
+after select area
+
+then it will hit 
+
+
+/api/v1/customers/get-salesman-area-wise

@@ -31,11 +31,11 @@ class UserLoginController:
     def __init__(self, db: AsyncSession):
         self.db = db
         
-    async def cleanup_inactive_sessions(self, max_inactive_hours: int = 24):
+    async def cleanup_inactive_sessions(self, max_inactive_hours: int = 720):
         """Cleanup sessions that have been inactive for longer than the specified hours"""
         try:
             # For login we use a shorter timeout (30 minutes)
-            cutoff_time = datetime.utcnow() - timedelta(minutes=30)
+            cutoff_time = datetime.utcnow() - timedelta(days=30)
             if max_inactive_hours > 0:  # If specifically called with hours parameter
                 cutoff_time = datetime.utcnow() - timedelta(hours=max_inactive_hours)
             

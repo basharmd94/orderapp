@@ -172,6 +172,7 @@ class CustomersDBController:
             raise Exception("Database session not initialized.")
         
         try:
+            # Query to get first matching record
             result = await self.db.execute(
                 select(
                     Cacus.xsp,
@@ -181,7 +182,7 @@ class CustomersDBController:
                 ).filter(
                     Cacus.zid == zid,
                     Cacus.xcity.ilike(f"%{area}%")
-                ).limit(1)  # Get first matching record
+                ).limit(1)
             )
             
             salesman = result.first()
@@ -191,7 +192,13 @@ class CustomersDBController:
                     detail=f"No salesman found for area: {area} in zid: {zid}"
                 )
 
-            return dict(salesman)
+            # Convert result to dictionary with proper field names
+            return {
+                "xsp": salesman[0],
+                "xsp1": salesman[1],
+                "xsp2": salesman[2],
+                "xsp3": salesman[3]
+            }
             
         except HTTPException:
             raise

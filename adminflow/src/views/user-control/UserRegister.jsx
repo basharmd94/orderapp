@@ -1,13 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Grid } from '@mui/material';
-import { useSnackbar } from 'notistack';
 import MainCard from 'ui-component/cards/MainCard';
-import { CustomInput, CustomButton } from 'ui-component/custom';
+import { CustomInput, CustomButton, CustomAutocomplete } from 'ui-component/custom';
 import SendIcon from '@mui/icons-material/Send';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
+import CheckIcon from '@mui/icons-material/Check';
 import { registerUser } from 'services/api_register_user';
 
 const UserRegister = () => {
-  const { enqueueSnackbar } = useSnackbar();
+  const businessIdOptions = Array.from({ length: 10 }, (_, i) => ({
+    label: `${100000 + i}`,
+    value: `${100000 + i}`
+  }));
+
   const [formData, setFormData] = useState({
     username: '',
     user_id: '',
@@ -22,6 +28,7 @@ const UserRegister = () => {
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState({ show: false, message: '', severity: 'success' });
 
   const validateForm = () => {
     const newErrors = {};
@@ -53,7 +60,11 @@ const UserRegister = () => {
       };
 
       await registerUser(submitData);
-      enqueueSnackbar('User successfully registered', { variant: 'success' });
+      setAlert({
+        show: true,
+        message: 'User successfully registered',
+        severity: 'success'
+      });
       // Reset form
       setFormData({
         username: '',
@@ -68,7 +79,11 @@ const UserRegister = () => {
         terminal: ''
       });
     } catch (error) {
-      enqueueSnackbar(error.message, { variant: 'error' });
+      setAlert({
+        show: true,
+        message: error.message,
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -89,8 +104,42 @@ const UserRegister = () => {
     }
   };
 
+  const handleBusinessIdChange = (event, newValue) => {
+    setFormData(prev => ({
+      ...prev,
+      businessId: newValue ? newValue.value : ''
+    }));
+    if (errors.businessId) {
+      setErrors(prev => ({
+        ...prev,
+        businessId: ''
+      }));
+    }
+  };
+
+  useEffect(() => {
+    let timer;
+    if (alert.show) {
+      timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 8000);
+    }
+    return () => clearTimeout(timer);
+  }, [alert.show]);
+
   return (
     <MainCard title="User Registration">
+      {alert.show && (
+        <Alert 
+          icon={alert.severity === 'success' ? <CheckIcon fontSize="inherit" /> : undefined}
+          severity={alert.severity}
+          sx={{ mb: 2 }}
+          onClose={() => setAlert({ ...alert, show: false })}
+        >
+          <AlertTitle>{alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}</AlertTitle>
+          {alert.message}
+        </Alert>
+      )}
       <form onSubmit={handleSubmit}>
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
@@ -163,14 +212,20 @@ const UserRegister = () => {
             />
           </Grid>
           <Grid item xs={12} md={6}>
-            <CustomInput
+            <CustomAutocomplete
               fullWidth
-              label="Business ID"
-              name="businessId"
-              value={formData.businessId}
-              onChange={handleChange}
-              error={!!errors.businessId}
-              helperText={errors.businessId}
+              options={businessIdOptions}
+              getOptionLabel={(option) => option.label}
+              value={businessIdOptions.find(option => option.value === formData.businessId) || null}
+              onChange={handleBusinessIdChange}
+              renderInput={(params) => (
+                <CustomInput
+                  {...params}
+                  label="Business ID"
+                  error={!!errors.businessId}
+                  helperText={errors.businessId}
+                />
+              )}
             />
           </Grid>
           <Grid item xs={12}>

@@ -19,6 +19,7 @@ class CustomersSchema(BaseModel):
         from_attributes = True
 
 class SalesmanAreaRequest(BaseModel):
+    """Request schema for getting salesman by area"""
     zid: int
     area: str
 
@@ -31,13 +32,22 @@ class SalesmanAreaRequest(BaseModel):
         }
 
 class SalesmanAreaResponse(BaseModel):
-    xsp: str | None = None
-    xsp1: str | None = None
-    xsp2: str | None = None
-    xsp3: str | None = None
+    """Response schema for salesman area information"""
+    xsp: Optional[str] = None
+    xsp1: Optional[str] = None
+    xsp2: Optional[str] = None
+    xsp3: Optional[str] = None
 
     class Config:
         from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "xsp": "SA--000001",
+                "xsp1": "SA--000002",
+                "xsp2": "SA--000003",
+                "xsp3": "SA--000004"
+            }
+        }
 
 class SalesmanAreaUpdateRequest(BaseModel):
     zid: int
