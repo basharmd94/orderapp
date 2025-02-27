@@ -74,11 +74,11 @@ export default function Profile() {
           >
             <Avatar size="2xl" className="bg-orange-400 mb-4">
               <AvatarFallbackText>
-                {getInitials(user?.employee_name || user?.username || 'User')}
+                {getInitials(user?.username || 'User')}
               </AvatarFallbackText>
             </Avatar>
             <Heading size="xl" className="text-gray-900">
-              {user?.employee_name || user?.username || 'User'}
+              {user?.username || 'User'}
             </Heading>
             <Text className="text-gray-500 mt-1">
               Employee ID: {user?.user_id || 'N/A'}

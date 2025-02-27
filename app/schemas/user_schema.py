@@ -6,7 +6,7 @@ from typing import Union
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 class UserBase(BaseModel):
-    user_name: str
+    username: str  # Changed from user_name to username to match database model
     email: Union[str, None] = None
     mobile: Union[str, None] = None
     status: Union[str, None] = "active"
@@ -59,7 +59,7 @@ class UserRegistrationSchema(UserBase):
             "examples": [
                 {
                     "user_id": "IT--000010",
-                    "user_name": "basharmd91",
+                    "username": "basharmd91",
                     "mobile": "01675373799",
                     "email": "mat197197@gmail.com",
                     "status": "active",

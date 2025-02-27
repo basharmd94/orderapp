@@ -186,11 +186,11 @@ const DashboardLayout = () => {
               color: 'primary.contrastText'
             }}
           >
-            {user?.user_name?.[0]?.toUpperCase()}
+            {user?.username?.[0]?.toUpperCase()}
           </Avatar>
           <Box>
             <Typography variant="subtitle2" fontWeight="bold">
-              {user?.user_name}
+              {user?.username}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {user?.is_admin === 'admin' ? 'Administrator' : 'User'}
@@ -244,7 +244,7 @@ const DashboardLayout = () => {
                     color: 'primary.contrastText'
                   }}
                 >
-                  {user?.user_name?.[0]?.toUpperCase()}
+                  {user?.username?.[0]?.toUpperCase()}
                 </Avatar>
               </IconButton>
             </Tooltip>

@@ -2,8 +2,8 @@ registration_example = {
     "json_schema_extra": {
         "examples": [
             {
-                "user_id": "LO--000084",
-                "user_name": "basharmd95",
+                "user_id": "IT--000084",
+                "username": "basharmd95",  # Changed from user_name
                 "mobile": "01675373799",
                 "email": "mat197195@gmail.com",
                 "status": "active",

@@ -40,7 +40,7 @@ const HomePage = () => {
               color: 'text.primary',
             }}
           >
-            Welcome back, {user?.user_name}
+            Welcome back, {user?.username}
           </Typography>
 
           <Grid container spacing={3}>

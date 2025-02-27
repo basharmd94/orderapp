@@ -127,7 +127,7 @@ async def handle_order_creation(
     try:
         order_db_controller = OrderDBController(db)
         db_items = await order_db_controller.create_order(zid, order, current_user)
-        logger.info(f"Order created by {current_user.user_name}, id {current_user.user_id}")
+        logger.info(f"Order created by {current_user.username}, id {current_user.user_id}")
         
         # Convert DB models to Pydantic models
         return [convert_to_opmob_response(item) for item in db_items]

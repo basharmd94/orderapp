@@ -3,6 +3,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import asyncio
  
+
+ 
 # Database URL
 SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/da"
 
@@ -19,6 +21,8 @@ Base = declarative_base()
 async def get_db():
     async with async_session_maker() as db:
         try:
+            
             yield db
         finally:
+            
             await db.close()

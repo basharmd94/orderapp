@@ -28,25 +28,25 @@ class ApiUsers(Base):
     status = Column(String)
     accode = Column(String)  # This limits the column to 50 characters
 
-    @validates('is_admin')
-    def validate_is_admin(self, key, value):
-        if isinstance(value, bool):
-            return 'admin' if value else 'user'
-        if value not in ['admin', 'user', '']:
-            raise ValueError(f"is_admin must be 'admin', 'user', or '', got {value} of type {type(value)}")
-        return value
+#     @validates('is_admin')
+#     def validate_is_admin(self, key, value):
+#         if isinstance(value, bool):
+#             return 'admin' if value else 'user'
+#         if value not in ['admin', 'user', '']:
+#             raise ValueError(f"is_admin must be 'admin', 'user', or '', got {value} of type {type(value)}")
+#         return value
 
-@event.listens_for(ApiUsers.is_admin, 'set', retval=True)
-def receive_set(target, value, oldvalue, initiator):
-    logger.debug(f"Setting is_admin value: {value} (type: {type(value)})")
-    logger.debug(f"Previous is_admin value: {oldvalue} (type: {type(oldvalue)})")
-    logger.debug(f"Stack trace for is_admin setting:\n{traceback.format_stack()}")
+# @event.listens_for(ApiUsers.is_admin, 'set', retval=True)
+# def receive_set(target, value, oldvalue, initiator):
+#     logger.debug(f"Setting is_admin value: {value} (type: {type(value)})")
+#     logger.debug(f"Previous is_admin value: {oldvalue} (type: {type(oldvalue)})")
+#     logger.debug(f"Stack trace for is_admin setting:\n{traceback.format_stack()}")
     
-    if isinstance(value, bool):
-        new_value = 'admin' if value else 'user'
-        logger.warning(f"Converting boolean is_admin value {value} to string: {new_value}")
-        return new_value
-    return value
+#     if isinstance(value, bool):
+#         new_value = 'admin' if value else 'user'
+#         logger.warning(f"Converting boolean is_admin value {value} to string: {new_value}")
+#         return new_value
+#     return value
 
 # logged table
 class Logged(Base):
@@ -63,13 +63,6 @@ class Logged(Base):
     device_info = Column(String)  # To track device information
     is_admin = Column(String)  # Added is_admin field
 
-    @validates('is_admin')
-    def validate_is_admin(self, key, value):
-        if isinstance(value, bool):
-            return 'admin' if value else 'user'
-        if value not in ['admin', 'user', '']:
-            raise ValueError('is_admin must be either "admin", "user", or empty string')
-        return value
 
 class TokenBlacklist(Base):
     __tablename__ = "token_blacklist"
@@ -100,14 +93,6 @@ class SessionHistory(Base):
     access_token = Column(String(1000))
     refresh_token = Column(String(1000))
     is_admin = Column(String)  # Added is_admin field
-
-    @validates('is_admin')
-    def validate_is_admin(self, key, value):
-        if isinstance(value, bool):
-            return 'admin' if value else 'user'
-        if value not in ['admin', 'user', '']:
-            raise ValueError('is_admin must be either "admin", "user", or empty string')
-        return value
 
 class LoginAttempts(Base):
     __tablename__ = "login_attempts"

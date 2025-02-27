@@ -9,7 +9,7 @@ import { registerUser } from 'services/api_register_user';
 const UserRegister = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [formData, setFormData] = useState({
-    user_name: '',
+    username: '',
     user_id: '',
     email: '',
     mobile: '',
@@ -25,7 +25,7 @@ const UserRegister = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.user_name) newErrors.user_name = 'Username is required';
+    if (!formData.username) newErrors.username = 'Username is required';
     if (!formData.user_id) newErrors.user_id = 'Employee ID is required';
     if (!formData.email) newErrors.email = 'Email is required';
     if (!formData.mobile) newErrors.mobile = 'Mobile number is required';
@@ -56,7 +56,7 @@ const UserRegister = () => {
       enqueueSnackbar('User successfully registered', { variant: 'success' });
       // Reset form
       setFormData({
-        user_name: '',
+        username: '',
         user_id: '',
         email: '',
         mobile: '',
@@ -97,11 +97,11 @@ const UserRegister = () => {
             <CustomInput
               fullWidth
               label="Username"
-              name="user_name"
-              value={formData.user_name}
+              name="username"
+              value={formData.username}
               onChange={handleChange}
-              error={!!errors.user_name}
-              helperText={errors.user_name}
+              error={!!errors.username}
+              helperText={errors.username}
             />
           </Grid>
           <Grid item xs={12} md={6}>

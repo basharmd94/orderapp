@@ -276,7 +276,7 @@ const Home = () => {
                     {getTimeOfDay()},
                   </Text>
                   <Heading size="xl" className="text-white">
-                    {user?.employee_name || user?.user_name || 'User'}
+                    {user?.employee_name || user?.username || 'User'}
                   </Heading>
                   <HStack space="sm" className="items-center mt-1">
                     <Box className="bg-white/30 px-3 py-1 rounded-full">

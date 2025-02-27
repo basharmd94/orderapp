@@ -36,14 +36,14 @@ async def update_session_activity(db: AsyncSession, username: str, token: str):
     except Exception as e:
         logger.error(f"Error updating session activity: {str(e)}")
         await db.rollback()
-
 async def session_activity_middleware(request: Request, call_next):
     """Middleware to update session activity timestamp"""
     response = None
-    
+
     try:
+        # Skip session activity updates for specific paths
         if request.url.path in [
-            "/api/v1/users/login", 
+            "/api/v1/users/login",
             "/api/v1/users/logout",
             "/api/v1/users/refresh-token",
             "/api/v1/health",
@@ -53,34 +53,37 @@ async def session_activity_middleware(request: Request, call_next):
         ]:
             return await call_next(request)
 
+        # Extract the token from the Authorization header
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
             try:
+                # Decode the JWT token
                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
                 username = payload.get("username")
-                
+
                 if username:
-                    async with AsyncSession(get_db()) as db:
+                    # Resolve the database session from get_db()
+                    async for db in get_db():
+                        # Update session activity
                         await update_session_activity(db, username, token)
-                        
+                        break  # Exit after using the session
+
             except JWTError:
                 logger.warning("Invalid token in session activity update")
             except Exception as e:
                 logger.error(f"Error updating session activity: {str(e)}")
-
     except Exception as e:
         logger.error(f"Session middleware error: {str(e)}")
-    
+
+    # Call the next middleware or route handler
     if response is None:
         response = await call_next(request)
-    
+
     return response
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
-) -> UserOutSchema:
+async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> UserOutSchema:
+    """Retrieve the currently authenticated user."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -88,7 +91,6 @@ async def get_current_user(
     )
     
     try:
-        # Check if token is blacklisted
         if await is_token_blacklisted(db, token):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -97,31 +99,22 @@ async def get_current_user(
 
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("username")
-        if username is None:
+        if not username:
             raise credentials_exception
-            
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired"
-        )
-    except JWTError as e:
-        logger.error(f"JWT validation error: {str(e)}")
-        raise credentials_exception
 
-    database_controller = UserDBController(db)
-    
-    try:
+        database_controller = UserDBController(db)
         user = await database_controller.get_user_by_username(username)
-        if user is None:
+        if not user:
             raise credentials_exception
 
-        # Check if this specific token has an active session
-        logged_query = await db.execute(
-            select(Logged).filter(
-                Logged.username == username,
-                Logged.access_token == token
+        if user.status.lower() != "active":  # Ensure user status is "active"
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is not active"
             )
+
+        logged_query = await db.execute(
+            select(Logged).filter(Logged.username == username, Logged.access_token == token)
         )
         logged_user = logged_query.scalar()
         
@@ -130,83 +123,27 @@ async def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="No active session found for this token"
             )
-
-        # Log the types for debugging
-        logger.debug(f"BusinessId type before conversion: {type(user.businessId)}, value: {user.businessId}")
         
-        try:
-            # Ensure businessId is an integer
-            business_id = int(user.businessId) if user.businessId is not None else None
-            logger.debug(f"Converted businessId: {business_id}")
-
-            user_dict = {
-                "user_id": user.employeeCode,
-                "user_name": user.username,
-                "mobile": user.mobile,
-                "email": user.email,
-                "status": user.status,
-                "businessId": business_id,
-                "terminal": user.terminal,
-                "accode": user.accode,
-                "is_admin": user.is_admin,
-            }
-            logger.debug(f"Final user_dict: {user_dict}")
-            return UserOutSchema(**user_dict)
-        except ValueError as ve:
-            logger.error(f"Error converting businessId: {ve}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Invalid businessId format: {user.businessId}"
-            )
-        except Exception as conversion_error:
-            logger.error(f"Error converting user data: {conversion_error}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error processing user data"
-            )
-            
+        return user
+    except JWTError as e:
+        logger.error(f"JWT validation error: {str(e)}")
+        raise credentials_exception
     except Exception as e:
         logger.error(f"User validation error: {str(e)}\n{traceback.format_exc()}")
-        if isinstance(e, HTTPException):
-            raise e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
 
-async def get_current_user_with_access(
-    current_user: UserRegistrationSchema = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    is_admin: bool = False
-) -> UserRegistrationSchema:
-    try:
-        if current_user.status != "active":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User is not active"
-            )
-
-        return current_user
-    except Exception as e:
-        error_msg = f"Access check error for user {current_user.user_name}: {str(e)}"
-        logger.error(f"{error_msg}\nStack trace: {traceback.format_exc()}")
-        if isinstance(e, HTTPException):
-            raise
+async def get_current_admin(current_user: UserOutSchema = Depends(get_current_user)) -> UserOutSchema:
+    """Dependency to ensure the current user is an admin."""
+    if current_user.is_admin.lower() != "admin":  # Check admin role
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_msg
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not authorized as an admin"
         )
+    return current_user
 
-async def get_current_admin(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-) -> UserRegistrationSchema:
-    return await get_current_user_with_access(token, db, is_admin=True)
-
-async def get_current_normal_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-) -> UserRegistrationSchema:
-    current_user = await get_current_user(token, db)
-    return await get_current_user_with_access(current_user, db, is_admin=False)
-
+async def get_current_normal_user(current_user: UserOutSchema = Depends(get_current_user)) -> UserOutSchema:
+    """Dependency to ensure normal users can access, but allow admins too."""
+    return current_user  # Admins can access all routes, normal users are restricted where needed

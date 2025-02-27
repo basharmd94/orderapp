@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from models.items_model import Caitem, Imtrn, Opspprc
-from controllers.db_controllers.database_controller import DatabaseController
 from schemas.items_schema import ItemsBaseSchema, ItemsSchema
 from sqlalchemy import func, or_, and_
 from sqlalchemy.sql.functions import coalesce

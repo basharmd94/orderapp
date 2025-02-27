@@ -1,6 +1,5 @@
-import traceback
+
 from fastapi import HTTPException, status, Form, Request
-from controllers.db_controllers.database_controller import DatabaseController
 from models.users_model import ApiUsers, Logged, TokenBlacklist, SessionHistory, LoginAttempts
 from fastapi.security import OAuth2PasswordRequestForm
 from utils.error import error_details
@@ -84,7 +83,7 @@ class UserLoginController:
             return len(inactive_sessions)
 
         except Exception as e:
-            logger.error(f"Error during inactive session cleanup: {str(e)}\n{traceback.format_exc()}")
+            logger.error(f"Error during inactive session cleanup")
             await self.db.rollback()
             # Don't raise exception during login flow
             if max_inactive_hours > 0:  # Only raise if specifically called as a standalone operation

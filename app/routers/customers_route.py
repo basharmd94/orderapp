@@ -27,7 +27,7 @@ async def get_all_customers(
             description="Put Customers ID, Customers Name or Area like CUS-001202 ",
         ),
     ],
-    employee_id : Annotated[
+    employee_id : Annotated[ 
         str,
         Query(
             min_length=3,

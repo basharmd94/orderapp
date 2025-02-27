@@ -2,7 +2,6 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from models.users_model import ApiUsers
-from controllers.db_controllers.database_controller import DatabaseController
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, delete
 from logs import setup_logger
@@ -37,7 +36,7 @@ class UserDBController:
                 )
                 
             # Ensure boolean conversion for is_admin
-            user.is_admin = bool(user.is_admin) if user.is_admin is not None else False
+            # user.is_admin = bool(user.is_admin) if user.is_admin is not None else False
             
             return user
         except Exception as e:
