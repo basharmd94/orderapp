@@ -11,13 +11,14 @@ import { Avatar } from "@/components/ui/avatar";
 import { AvatarFallbackText } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Divider } from "@/components/ui/divider";
-import { LogOut, Mail, Phone, Building, Terminal, Shield, Database } from 'lucide-react-native';
+import { LogOut, Mail, Phone, Building, Terminal, Shield, Database, Package } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useState } from 'react';
 import syncCustomers from '@/utils/syncCustomer';
+import syncItems from '@/utils/syncItems';
 import colors from "tailwindcss/colors";
-import { Alert, AlertText, AlertIcon } from "@/components/ui/alert"; // Added Alert imports
-import { InfoIcon } from "@/components/ui/icon"; // Added InfoIcon
+import { Alert, AlertText, AlertIcon } from "@/components/ui/alert";
+import { InfoIcon } from "@/components/ui/icon";
 
 const ProfileItem = ({ icon: Icon, label, value }) => (
   <HStack space="md" className="items-center py-3">
@@ -33,8 +34,9 @@ const ProfileItem = ({ icon: Icon, label, value }) => (
 
 export default function Profile() {
   const { user, logout } = useAuth();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [showSyncAlert, setShowSyncAlert] = useState(false); // State for alert
+  const [isSyncingCustomers, setIsSyncingCustomers] = useState(false);
+  const [isSyncingItems, setIsSyncingItems] = useState(false);
+  const [syncAlert, setSyncAlert] = useState({ show: false, message: '' });
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -45,22 +47,55 @@ export default function Profile() {
       .toUpperCase();
   };
 
-  const handleSync = async () => {
+  const handleSyncCustomers = async () => {
     if (!user?.user_id) {
       console.error('No employee ID available for sync');
       return;
     }
-    setIsSyncing(true);
-    setShowSyncAlert(false); // Reset alert
+    setIsSyncingCustomers(true);
+    setSyncAlert({ show: false, message: '' });
     try {
-      const success = await syncCustomers(user.user_id);
-      if (success) {
-        setShowSyncAlert(true); // Show alert on success
+      const result = await syncCustomers(user.user_id);
+      if (result.success) {
+        let message = result.message;
+        if (!message) {
+          if (result.totalCustomers === -1) {
+            message = 'Customer sync completed successfully';
+          } else {
+            message = `Customer Sync Completed: ${result.updatedCustomers} customers updated out of ${result.totalCustomers} total customers`;
+          }
+        }
+        setSyncAlert({ show: true, message });
       }
     } catch (error) {
-      console.error('Sync failed:', error);
+      console.error('Customer sync failed:', error);
+      setSyncAlert({ show: true, message: 'Customer Sync Failed!' });
     } finally {
-      setIsSyncing(false);
+      setIsSyncingCustomers(false);
+    }
+  };
+
+  const handleSyncItems = async () => {
+    setIsSyncingItems(true);
+    setSyncAlert({ show: false, message: '' });
+    try {
+      const result = await syncItems();
+      if (result.success) {
+        let message = result.message;
+        if (!message) {
+          if (result.totalItems === -1) {
+            message = 'Item sync completed successfully';
+          } else {
+            message = `Items Sync Completed: ${result.updatedItems} items updated out of ${result.totalItems} total items`;
+          }
+        }
+        setSyncAlert({ show: true, message });
+      }
+    } catch (error) {
+      console.error('Items sync failed:', error);
+      setSyncAlert({ show: true, message: 'Items Sync Failed!' });
+    } finally {
+      setIsSyncingItems(false);
     }
   };
 
@@ -124,29 +159,53 @@ export default function Profile() {
             </Card>
 
             {/* Sync Alert */}
-            {showSyncAlert && (
+            {syncAlert.show && (
               <Animated.View entering={FadeInDown.duration(300)}>
                 <Alert action="info" variant="solid" className="mb-4">
                   <AlertIcon as={InfoIcon} />
-                  <AlertText>Sync Completed Successfully!</AlertText>
+                  <AlertText>{syncAlert.message}</AlertText>
                 </Alert>
               </Animated.View>
             )}
+
+            {/* Sync Items Button */}
+            <Button
+              size="lg"
+              variant="solid"
+              action="primary"
+              onPress={handleSyncItems}
+              className="mt-4 bg-green-600"
+              isDisabled={isSyncingItems || isSyncingCustomers}
+            >
+              {isSyncingItems ? (
+                <>
+                  <ButtonSpinner color={colors.gray[400]} />
+                  <ButtonText className="font-medium text-sm ml-2 text-white">
+                    Syncing Items...
+                  </ButtonText>
+                </>
+              ) : (
+                <>
+                  <ButtonIcon as={Package} className="mr-2 text-white" />
+                  <ButtonText className="text-white">Sync Items</ButtonText>
+                </>
+              )}
+            </Button>
 
             {/* Sync Customers Button */}
             <Button
               size="lg"
               variant="solid"
               action="primary"
-              onPress={handleSync}
+              onPress={handleSyncCustomers}
               className="mt-4 bg-blue-500"
-              isDisabled={isSyncing}
+              isDisabled={isSyncingCustomers || isSyncingItems}
             >
-              {isSyncing ? (
+              {isSyncingCustomers ? (
                 <>
                   <ButtonSpinner color={colors.gray[400]} />
                   <ButtonText className="font-medium text-sm ml-2 text-white">
-                    Syncing...
+                    Syncing Customers...
                   </ButtonText>
                 </>
               ) : (
