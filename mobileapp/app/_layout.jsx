@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+
 import "../global.css";
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import { Stack } from 'expo-router';
@@ -28,7 +28,7 @@ function ProtectedRoute() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+
 
   useEffect(() => {
     // Hide splash screen once everything is set
@@ -38,15 +38,13 @@ export default function RootLayout() {
   return (
     <GluestackUIProvider config={config}>
       <AuthProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />
           </Stack>
           <ProtectedRoute />
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        </ThemeProvider>
       </AuthProvider>
     </GluestackUIProvider>
   );

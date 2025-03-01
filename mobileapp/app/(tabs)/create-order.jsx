@@ -49,10 +49,10 @@ export default function CreateOrder() {
   const [hasMoreItems, setHasMoreItems] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
-  const LIMIT = 60;
+  const LIMIT = 20;
   const searchDebounceRef = useRef(null);
   const itemSearchDebounceRef = useRef(null);
-  const SEARCH_DELAY = 80; // Reduced from 300ms to 150ms since we're using SQLite
+  const SEARCH_DELAY = 120; // Reduced from 300ms to 150ms since we're using SQLite
 
   useEffect(() => {
     loadCartItems();
@@ -61,7 +61,7 @@ export default function CreateOrder() {
   useEffect(() => {
     setCustomerOffset(0);
     setHasMoreCustomers(true);
-    if (customerSearchText.length < 1) {
+    if (customerSearchText.length < 2) {
       setCustomers([]);
       setHasMoreCustomers(false);
     }
@@ -70,7 +70,7 @@ export default function CreateOrder() {
   useEffect(() => {
     setItemOffset(0);
     setHasMoreItems(true);
-    if (itemSearchText.length < 1) {
+    if (itemSearchText.length < 2) {
       setItems([]);
       setHasMoreItems(false);
     }
@@ -238,7 +238,7 @@ export default function CreateOrder() {
   };
 
   const searchCustomers = useCallback(async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 1 || !user) {
+    if (!zid || searchText.length < 2 || !user) {
       setCustomers([]);
       setHasMoreCustomers(false);
       return;
@@ -285,7 +285,7 @@ export default function CreateOrder() {
   }, [zid, user]);
 
   const searchItems = async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 1) {
+    if (!zid || searchText.length < 2) {
       setItems([]);
       setHasMoreItems(false);
       return;
