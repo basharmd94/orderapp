@@ -35,7 +35,7 @@ def validate_env_vars():
     required_env_vars = {
         "SECRET_KEY": lambda x: len(x) >= 32,  # At least 32 chars for security
         "ALGORITHM": lambda x: x in ["HS256", "HS384", "HS512"],  # Only allow HMAC-SHA algorithms
-        "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 5 <= int(x) <= 60,  # Between 5-60 minutes
+        "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 60 <= int(x) <= 120,  # Between 5-60 minutes
         "REFRESH_TOKEN_EXPIRE_DAYS": lambda x: x.isdigit() and 1 <= int(x) <= 30,  # Between 1-30 days
         "DATABASE_URL": lambda x: x.startswith(("postgresql+asyncpg://", "postgresql://")),
         "MAX_LOGIN_ATTEMPTS": lambda x: x.isdigit() and 1 <= int(x) <= 10,

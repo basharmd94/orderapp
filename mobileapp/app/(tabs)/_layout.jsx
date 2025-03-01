@@ -47,8 +47,10 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Home',
+          unmountOnBlur: false,
           tabBarIcon: (props) => (
             <TabBarIcon {...props} icon={House} />
+            
           ),
         }}
       />

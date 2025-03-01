@@ -11,24 +11,37 @@ export function AuthProvider({ children }) {
   const segments = useSegments();
   const router = useRouter();
 
+  // Initial authentication check - separated from segment change effects
   useEffect(() => {
     const initAuth = async () => {
-      const userInfo = await checkUser();
-      if (userInfo) {
+      try {
+        const userInfo = await checkUser();
         setUser(userInfo);
-        if (segments[0] !== '(tabs)') {
-          router.replace('/(tabs)/home');
-        }
-      } else {
-        if (segments[0] !== 'sign-in') {
-          router.replace('/sign-in');
-        }
+      } catch (error) {
+        console.error('Initial auth check failed:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     initAuth();
-  }, [segments]);
+  }, []);
+
+  // Navigation logic based on authentication state
+  useEffect(() => {
+    if (loading) return; // Don't redirect while loading
+    
+    const inAuthGroup = segments[0] === '(auth)';
+    const inTabsGroup = segments[0] === '(tabs)';
+    
+    if (user && inAuthGroup) {
+      // If user is signed in and on an auth page, redirect to home
+      router.replace('/(tabs)/home');
+    } else if (!user && !inAuthGroup) {
+      // If user is not signed in and not on an auth page, redirect to sign-in
+      router.replace('/sign-in');
+    }
+  }, [user, loading, segments[0]]); // Only check the group segment, not the specific tab
 
   const checkUser = async () => {
     try {
