@@ -11,11 +11,12 @@ import CartList from "@/components/create-order/CartList";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect, useRef, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import api from "@/lib/api";
 import { Fab, FabLabel, FabIcon } from "@/components/ui/fab";
 import { Plus, ShoppingCart } from "lucide-react-native";
 import { Spinner } from "@/components/ui/spinner";
 import { useOrderStore } from "@/stores/orderStore";
+import { getCustomers } from "@/database/customerModels";
+import { getItems } from "@/database/itemModels";
 
 export default function CreateOrder() {
   const { user } = useAuth();
@@ -35,6 +36,7 @@ export default function CreateOrder() {
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [customerSearchText, setCustomerSearchText] = useState("");
   const [itemSearchText, setItemSearchText] = useState("");
+  
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -47,39 +49,28 @@ export default function CreateOrder() {
   const [hasMoreItems, setHasMoreItems] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
-  const LIMIT = 10;
-  const searchSequence = useRef(0);
-  const itemSearchSequence = useRef(0);
+  const LIMIT = 60;
   const searchDebounceRef = useRef(null);
   const itemSearchDebounceRef = useRef(null);
-  const activeSearchRef = useRef(false);
-  const searchTimeoutRef = useRef(null);
-  const lastSearchRef = useRef('');
-  const SEARCH_DELAY = 500; // 500ms delay between searches
-  const abortControllerRef = useRef(null);
-  const INITIAL_SEARCH_DELAY = 800; // Longer delay for initial search
-  const TYPING_DELAY = 500; // Medium delay while typing
-  const LOAD_MORE_DELAY = 300; // Short delay for loading more
+  const SEARCH_DELAY = 80; // Reduced from 300ms to 150ms since we're using SQLite
 
   useEffect(() => {
     loadCartItems();
   }, []);
 
   useEffect(() => {
-    searchSequence.current = 0;
     setCustomerOffset(0);
     setHasMoreCustomers(true);
-    if (customerSearchText.length < 3) { // Changed from 3 to 1
+    if (customerSearchText.length < 1) {
       setCustomers([]);
       setHasMoreCustomers(false);
     }
   }, [customerSearchText]);
 
   useEffect(() => {
-    itemSearchSequence.current = 0;
     setItemOffset(0);
     setHasMoreItems(true);
-    if (itemSearchText.length < 3) {
+    if (itemSearchText.length < 1) {
       setItems([]);
       setHasMoreItems(false);
     }
@@ -247,8 +238,9 @@ export default function CreateOrder() {
   };
 
   const searchCustomers = useCallback(async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 3 || !user) { // Changed from 3 to 1
+    if (!zid || searchText.length < 1 || !user) {
       setCustomers([]);
+      setHasMoreCustomers(false);
       return;
     }
     
@@ -261,13 +253,8 @@ export default function CreateOrder() {
       }
       
       const offset = isLoadingMore ? customerOffset : 0;
-      await new Promise(resolve => setTimeout(resolve, 300)); // Add small delay
-
-      const response = await api.get(
-        `/customers/all/${zid}?customer=${searchText}&employee_id=${user?.user_id || ''}&limit=${LIMIT}&offset=${offset}`
-      );
-      
-      const newCustomers = response.data || [];
+      const results = await getCustomers(zid, searchText, user.user_id, LIMIT, offset);
+      const newCustomers = results || [];
       
       if (!isLoadingMore) {
         setCustomers(newCustomers);
@@ -280,8 +267,11 @@ export default function CreateOrder() {
       }
       
       setHasMoreCustomers(newCustomers.length === LIMIT);
-      setCustomerOffset(offset + (newCustomers.length === LIMIT ? LIMIT : 0));
-      
+      if (newCustomers.length === LIMIT) {
+        setCustomerOffset(offset + LIMIT);
+      } else {
+        setHasMoreCustomers(false);
+      }
     } catch (error) {
       console.error("Error searching customers:", error);
       if (!isLoadingMore) {
@@ -294,78 +284,33 @@ export default function CreateOrder() {
     }
   }, [zid, user]);
 
-  // Add effect to clear search results when user is not available
-  useEffect(() => {
-    if (!user) {
-      setCustomers([]);
-      setHasMoreCustomers(false);
-      setCustomerOffset(0);
-    }
-  }, [user]);
-
-  const handleCustomerSearch = useCallback((text) => {
-    setCustomerSearchText(text);
-    
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-
-    if (text.length >= 1) { // Changed from 3 to 1
-      searchDebounceRef.current = setTimeout(() => {
-        searchCustomers(text);
-      }, 500);
-    } else {
-      setCustomers([]);
-      setHasMoreCustomers(false);
-    }
-  }, [searchCustomers]);
-
-  const handleLoadMoreCustomers = useCallback(() => {
-    if (!loadingMoreCustomers && hasMoreCustomers && customerSearchText.length >= 1) { // Changed from 3 to 1
-      searchCustomers(customerSearchText, true);
-    }
-  }, [loadingMoreCustomers, hasMoreCustomers, customerSearchText, searchCustomers]);
-
-  // Similar updates for item search
   const searchItems = async (searchText, isLoadingMore = false) => {
-    if (!zid || searchText.length < 1) { // Changed from 3 to 1
+    if (!zid || searchText.length < 1) {
       setItems([]);
       setHasMoreItems(false);
       return;
     }
     
     try {
-      const currentSequence = ++itemSearchSequence.current;
-      
       if (!isLoadingMore) {
         setItemsLoading(true);
         setItemOffset(0);
-        setItems([]);
-      } else if (loadingMoreItems) {
-        return;
       } else {
         setLoadingMoreItems(true);
       }
       
       const offset = isLoadingMore ? itemOffset : 0;
-      const response = await api.get(
-        `/items/all/${zid}?item_name=${searchText}&limit=${LIMIT}&offset=${offset}`
-      );
-
-      if (currentSequence !== itemSearchSequence.current) {
-        return;
-      }
-      
-      const newItems = response.data || [];
+      const results = await getItems(zid, searchText, LIMIT, offset);
+      const newItems = results || [];
       
       if (!isLoadingMore) {
         setItems(newItems);
       } else {
-        const existingIds = new Set(items.map(item => item.item_id));
-        const uniqueNewItems = newItems.filter(item => !existingIds.has(item.item_id));
-        if (uniqueNewItems.length > 0) {
-          setItems(prev => [...prev, ...uniqueNewItems]);
-        }
+        setItems(prev => {
+          const existingIds = new Set(prev.map(item => item.item_id));
+          const uniqueNewItems = newItems.filter(item => !existingIds.has(item.item_id));
+          return [...prev, ...uniqueNewItems];
+        });
       }
       
       setHasMoreItems(newItems.length === LIMIT);
@@ -386,22 +331,47 @@ export default function CreateOrder() {
     }
   };
 
+  const handleCustomerSearch = useCallback((text) => {
+    setCustomerSearchText(text);
+    
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (text.length >= 1) {
+      searchDebounceRef.current = setTimeout(() => {
+        searchCustomers(text);
+      }, SEARCH_DELAY);
+    } else {
+      setCustomers([]);
+      setHasMoreCustomers(false);
+    }
+  }, [searchCustomers]);
+
   const handleItemSearch = (text) => {
     setItemSearchText(text);
-    if (text.length >= 3) { // Changed from 3 to 1
-      // Use timeout for all searches
-      const timeoutId = setTimeout(() => {
+    if (itemSearchDebounceRef.current) {
+      clearTimeout(itemSearchDebounceRef.current);
+    }
+
+    if (text.length >= 1) {
+      itemSearchDebounceRef.current = setTimeout(() => {
         searchItems(text);
-      }, 300);
-      return () => clearTimeout(timeoutId);
+      }, SEARCH_DELAY);
     } else {
       setItems([]);
       setHasMoreItems(false);
     }
   };
 
+  const handleLoadMoreCustomers = useCallback(() => {
+    if (!loadingMoreCustomers && hasMoreCustomers && customerSearchText.length >= 1) {
+      searchCustomers(customerSearchText, true);
+    }
+  }, [loadingMoreCustomers, hasMoreCustomers, customerSearchText, searchCustomers]);
+
   const handleLoadMoreItems = () => {
-    if (!loadingMoreItems && hasMoreItems && itemSearchText.length >= 3) { // Changed from 3 to 1
+    if (!loadingMoreItems && hasMoreItems && itemSearchText.length >= 1) {
       searchItems(itemSearchText, true);
     }
   };
@@ -411,18 +381,15 @@ export default function CreateOrder() {
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       if (itemSearchDebounceRef.current) clearTimeout(itemSearchDebounceRef.current);
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
 
   // Reset search state when component unmounts or zid changes
   useEffect(() => {
-    lastSearchRef.current = '';
     setCustomers([]);
     setHasMoreCustomers(false);
     setCustomerOffset(0);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
   }, [zid]);
 
   return (
@@ -467,7 +434,7 @@ export default function CreateOrder() {
                 loading={itemsLoading}
                 loadingMore={loadingMoreItems}
                 hasMore={hasMoreItems}
-                searchText={itemSearchText}
+                searchText={itemSearchText} 
                 setSearchText={handleItemSearch}
                 onLoadMore={handleLoadMoreItems}
               />

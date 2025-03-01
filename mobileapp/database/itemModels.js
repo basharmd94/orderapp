@@ -37,26 +37,25 @@ const getExistingItems = async () => {
 const upsertItems = async (items) => {
   const db = await getDatabase();
   if (!db) throw new Error('Database not initialized');
-  if (!db.transactionAsync) throw new Error('transactionAsync not available');
+  
   const statement = `
     INSERT OR REPLACE INTO item 
     (zid, item_id, item_name, item_group, std_price, stock, min_disc_qty, disc_amt) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  await db.transactionAsync(async (tx) => {
-    for (const item of items) {
-      await tx.runAsync(statement, [
-        item.zid,
-        item.item_id,
-        item.item_name,
-        item.item_group,
-        item.std_price,
-        item.stock,
-        item.min_disc_qty,
-        item.disc_amt
-      ]);
-    }
-  });
+  
+  for (const item of items) {
+    await db.runAsync(statement, [
+      item.zid,
+      item.item_id,
+      item.item_name,
+      item.item_group,
+      item.std_price,
+      item.stock,
+      item.min_disc_qty,
+      item.disc_amt
+    ]);
+  }
 };
 
 const getItems = async (zid, searchText, limit = 20, offset = 0) => {
