@@ -2,7 +2,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Heading } from "@/components/ui/heading";
-import { ScrollView } from "react-native";
+import { ScrollView, View, TouchableOpacity } from "react-native";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Button, ButtonText, ButtonIcon, ButtonSpinner } from "@/components/ui/button";
@@ -30,6 +30,27 @@ const ProfileItem = ({ icon: Icon, label, value }) => (
       <Text className="text-gray-900 font-medium">{value}</Text>
     </VStack>
   </HStack>
+);
+
+const ActionButton = ({ icon: Icon, label, onPress, isLoading, color }) => (
+  <TouchableOpacity 
+    onPress={onPress} 
+    disabled={isLoading}
+    className="items-center justify-center"
+  >
+    <Box 
+      className={`w-16 h-16 rounded-full items-center justify-center ${color}`}
+    >
+      {isLoading ? (
+        <ButtonSpinner color={colors.white} />
+      ) : (
+        <Icon size={25} color="#fff" />
+      )}
+    </Box>
+    <Text className="text-xs text-gray-700 mt-2 font-medium text-center">
+      {isLoading ? 'Syncing...' : label}
+    </Text>
+  </TouchableOpacity>
 );
 
 export default function Profile() {
@@ -105,7 +126,7 @@ export default function Profile() {
         <Box className="p-4">
           <Animated.View 
             entering={FadeInDown.duration(500).springify()}
-            className="items-center mb-6"
+            className="items-center mb-4"
           >
             <Avatar size="2xl" className="bg-orange-400 mb-4">
               <AvatarFallbackText>
@@ -115,9 +136,40 @@ export default function Profile() {
             <Heading size="xl" className="text-gray-900">
               {user?.username || 'User'}
             </Heading>
-            <Text className="text-gray-500 mt-1">
+            <Text className="text-gray-500 mt-1 mb-4">
               Employee ID: {user?.user_id || 'N/A'}
             </Text>
+            
+            {/* New horizontal grid of action buttons */}
+            <Animated.View 
+              entering={FadeInDown.delay(50).duration(500).springify()}
+              className="w-full"
+            >
+              <HStack space="lg" className="justify-center mb-4">
+                <ActionButton 
+                  icon={Package} 
+                  label="Sync Items" 
+                  onPress={handleSyncItems}
+                  isLoading={isSyncingItems}
+                  color="bg-emerald-500"
+                />
+
+                <ActionButton 
+                  icon={Database} 
+                  label="Sync Customers" 
+                  onPress={handleSyncCustomers}
+                  isLoading={isSyncingCustomers}
+                  color="bg-orange-400"
+                />
+                <ActionButton 
+                  icon={LogOut} 
+                  label="Logout" 
+                  onPress={logout}
+                  
+                  color="bg-gray-800"
+                />
+              </HStack>
+            </Animated.View>
           </Animated.View>
 
           <Animated.View 
@@ -168,65 +220,7 @@ export default function Profile() {
               </Animated.View>
             )}
 
-            {/* Sync Items Button */}
-            <Button
-              size="lg"
-              variant="solid"
-              action="primary"
-              onPress={handleSyncItems}
-              className="mt-4 bg-green-600"
-              isDisabled={isSyncingItems || isSyncingCustomers}
-            >
-              {isSyncingItems ? (
-                <>
-                  <ButtonSpinner color={colors.gray[400]} />
-                  <ButtonText className="font-medium text-sm ml-2 text-white">
-                    Syncing Items...
-                  </ButtonText>
-                </>
-              ) : (
-                <>
-                  <ButtonIcon as={Package} className="mr-2 text-white" />
-                  <ButtonText className="text-white">Sync Items</ButtonText>
-                </>
-              )}
-            </Button>
-
-            {/* Sync Customers Button */}
-            <Button
-              size="lg"
-              variant="solid"
-              action="primary"
-              onPress={handleSyncCustomers}
-              className="mt-4 bg-blue-500"
-              isDisabled={isSyncingCustomers || isSyncingItems}
-            >
-              {isSyncingCustomers ? (
-                <>
-                  <ButtonSpinner color={colors.gray[400]} />
-                  <ButtonText className="font-medium text-sm ml-2 text-white">
-                    Syncing Customers...
-                  </ButtonText>
-                </>
-              ) : (
-                <>
-                  <ButtonIcon as={Database} className="mr-2 text-white" />
-                  <ButtonText className="text-white">Sync Customers</ButtonText>
-                </>
-              )}
-            </Button>
-
-            {/* Logout Button */}
-            <Button
-              size="lg"
-              variant="outline"
-              action="error"
-              onPress={logout}
-              className="mt-4 bg-orange-400 border-0"
-            >
-              <ButtonIcon as={LogOut} className="mr-2 text-error-600 text-white" />
-              <ButtonText>Logout</ButtonText>
-            </Button>
+            {/* Original buttons removed from here */}
           </Animated.View>
         </Box>
       </ScrollView>

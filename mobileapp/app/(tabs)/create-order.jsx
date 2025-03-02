@@ -421,6 +421,7 @@ export default function CreateOrder() {
                 searchText={customerSearchText}
                 setSearchText={handleCustomerSearch}
                 onLoadMore={handleLoadMoreCustomers}
+                onSearch={searchCustomers}
               />
 
               <ItemSelector
@@ -437,6 +438,7 @@ export default function CreateOrder() {
                 searchText={itemSearchText} 
                 setSearchText={handleItemSearch}
                 onLoadMore={handleLoadMoreItems}
+                onSearch={searchItems}
               />
 
               <QuantityInput

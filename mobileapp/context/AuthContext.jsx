@@ -11,12 +11,11 @@ export function AuthProvider({ children }) {
   const segments = useSegments();
   const router = useRouter();
 
-  // Initial authentication check - separated from segment change effects
   useEffect(() => {
     const initAuth = async () => {
       try {
         const userInfo = await checkUser();
-        setUser(userInfo);
+        if (userInfo) setUser(userInfo);
       } catch (error) {
         console.error('Initial auth check failed:', error);
       } finally {
@@ -27,41 +26,22 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
-  // Navigation logic based on authentication state
   useEffect(() => {
-    if (loading) return; // Don't redirect while loading
-    
-    const inAuthGroup = segments[0] === '(auth)';
-    const inTabsGroup = segments[0] === '(tabs)';
-    
-    if (user && inAuthGroup) {
-      // If user is signed in and on an auth page, redirect to home
-      router.replace('/(tabs)/home');
-    } else if (!user && !inAuthGroup) {
-      // If user is not signed in and not on an auth page, redirect to sign-in
+    if (loading) return;
+    if (!user && segments[0] !== '(auth)') {
       router.replace('/sign-in');
     }
-  }, [user, loading, segments[0]]); // Only check the group segment, not the specific tab
+  }, [user, loading]);
 
   const checkUser = async () => {
     try {
-      const [token, refreshToken] = await Promise.all([
-        AsyncStorage.getItem('accessToken'),
-        AsyncStorage.getItem('refreshToken')
-      ]);
-
-      if (!token || !refreshToken) {
-        throw new Error('No tokens available');
-      }
-
+      const token = await AsyncStorage.getItem('accessToken');
+      if (!token) throw new Error('No tokens available');
       const userInfo = await getCurrentUser();
       return userInfo;
     } catch (error) {
       console.error('Auth check failed:', error);
-      await Promise.all([
-        AsyncStorage.removeItem('accessToken'),
-        AsyncStorage.removeItem('refreshToken')
-      ]);
+      await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
       return null;
     }
   };
@@ -69,9 +49,9 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const { access_token, refresh_token } = await apiLogin(username, password);
-      await Promise.all([
-        AsyncStorage.setItem('accessToken', access_token),
-        AsyncStorage.setItem('refreshToken', refresh_token)
+      await AsyncStorage.multiSet([
+        ['accessToken', access_token],
+        ['refreshToken', refresh_token],
       ]);
 
       const userInfo = await getCurrentUser();
@@ -90,26 +70,14 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Logout API call failed:', error);
     } finally {
-      await Promise.all([
-        AsyncStorage.removeItem('accessToken'),
-        AsyncStorage.removeItem('refreshToken')
-      ]);
+      await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
       setUser(null);
       router.replace('/sign-in');
     }
   };
 
-  const handleAuthError = async () => {
-    await Promise.all([
-      AsyncStorage.removeItem('accessToken'),
-      AsyncStorage.removeItem('refreshToken')
-    ]);
-    setUser(null);
-    router.replace('/sign-in');
-  };
-
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, handleAuthError }}>
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

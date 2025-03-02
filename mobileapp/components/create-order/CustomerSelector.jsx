@@ -15,6 +15,7 @@ import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
+import { debounce } from 'lodash';
 
 const CustomerCard = ({ customer, onSelect }) => (
   <TouchableOpacity
@@ -78,21 +79,51 @@ export default function CustomerSelector({
   setSearchText,
   onLoadMore,
   hasMoreData,
+  onSearch, // Added param for search function
 }) {
   const inputRef = useRef(null);
   const drawerInputRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [autocompleteResults, setAutocompleteResults] = useState([]);
   const loadingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   const scrollOffset = useRef(0);
   const onEndReachedCalledDuringMomentum = useRef(false);
   const isLoadingMoreRef = useRef(false);
 
+  // Create debounced search function
+  const debouncedSearch = useRef(
+    debounce((text) => {
+      if (text.length >= 1) {
+        onSearch(text);
+        setShowAutocomplete(true);
+      } else {
+        setShowAutocomplete(false);
+        setAutocompleteResults([]);
+      }
+    }, 300)
+  ).current;
+
+  // Update autocomplete results when customers change
+  useEffect(() => {
+    if (searchText.length >= 1 && !loading) {
+      setAutocompleteResults(customers.slice(0, 5)); // Show top 5 matches as autocomplete
+    }
+  }, [customers, loading, searchText]);
+
   const handleSearchChange = useCallback((text) => {
     setSearchText(text);
     isTypingRef.current = true;
-  }, [setSearchText]);
+    debouncedSearch(text);
+  }, [setSearchText, debouncedSearch]);
+
+  const handleAutocompleteSelect = useCallback((item) => {
+    setSearchText(item.xorg);
+    setShowAutocomplete(false);
+    onSearch(item.xorg);
+  }, [setSearchText, onSearch]);
 
   const handleLoadMore = useCallback(() => {
     if (onEndReachedCalledDuringMomentum.current) return;
@@ -100,7 +131,7 @@ export default function CustomerSelector({
     if (!loading && 
         !loadingMore && 
         hasMoreData && 
-        searchText.length >= 1 && // Changed from 3 to 1
+        searchText.length >= 1 && 
         !isLoadingMoreRef.current && 
         scrollOffset.current > 0) {
       isLoadingMoreRef.current = true;
@@ -124,8 +155,10 @@ export default function CustomerSelector({
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
+      // Clean up debounce function
+      debouncedSearch.cancel();
     };
-  }, []);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     if (loading) {
@@ -154,6 +187,22 @@ export default function CustomerSelector({
     />
   ), [onCustomerSelect, setShowCustomerSheet]);
 
+  const renderAutocompleteItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      onPress={() => handleAutocompleteSelect(item)}
+      className="px-4 py-2 border-b border-gray-100"
+    >
+      <View className="flex-row items-center">
+        <Building size={16} className="text-gray-400 mr-2" />
+        <Text className="text-gray-800 font-medium">{item.xorg}</Text>
+      </View>
+      <Text className="text-xs text-gray-500 ml-6">
+        {item.xcity ? `${item.xcity}${item.xtaxnum ? ` • ${item.xtaxnum}` : ''}` : 
+          item.xtaxnum ? item.xtaxnum : 'ID: ' + item.xcus}
+      </Text>
+    </TouchableOpacity>
+  ), [handleAutocompleteSelect]);
+
   const getItemKey = useCallback((item) => 
     `customer-${item.xcus}-${item.zid}`, 
   []);
@@ -176,6 +225,7 @@ export default function CustomerSelector({
         isOpen={showCustomerSheet}
         onClose={() => {
           setShowCustomerSheet(false);
+          setShowAutocomplete(false);
           Keyboard.dismiss();
         }}
         size="full"
@@ -193,29 +243,63 @@ export default function CustomerSelector({
                 </View>
               </View>
 
-              <Box className="mt-4">
-                <Input
-                  size="sm"
-                  className="bg-white border border-gray-200 rounded-xl  w-full h-10"
-                >
-                  <InputField
-                    ref={drawerInputRef}
-                    placeholder={`Search customers in ZID ${zid}...`}
-                    value={searchText}
-                    onChangeText={handleSearchChange}
-                    className="text-sm"
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    autoCorrect={false}
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    returnKeyType="search"
-                    
-                  />
-                  <InputSlot px="$3">
-                    <InputIcon as={Search} size={18} className="text-gray-400" />
-                  </InputSlot>
-                </Input>
+              <Box className="mt-4 w-[280px]">
+                <View className="relative">
+                  <Input
+                    size="sm"
+                    className="bg-white border border-gray-200 rounded-xl w-full h-10"
+                  >
+                    <InputField
+                      ref={drawerInputRef}
+                      placeholder={`Search customers in ZID ${zid}...`}
+                      value={searchText}
+                      onChangeText={handleSearchChange}
+                      className="text-sm"
+                      onFocus={() => {
+                        setIsFocused(true);
+                        if (searchText.length >= 1 && autocompleteResults.length > 0) {
+                          setShowAutocomplete(true);
+                        }
+                      }}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        // Delay hiding autocomplete to allow for selection
+                        setTimeout(() => setShowAutocomplete(false), 150);
+                      }}
+                      autoCorrect={false}
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      returnKeyType="search"
+                    />
+                    <InputSlot px="$3">
+                      {searchText ? (
+                        <TouchableOpacity 
+                          onPress={() => {
+                            setSearchText('');
+                            setShowAutocomplete(false);
+                          }}
+                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        >
+                          <InputIcon as={X} size={18} className="text-gray-400" />
+                        </TouchableOpacity>
+                      ) : (
+                        <InputIcon as={Search} size={18} className="text-gray-400" />
+                      )}
+                    </InputSlot>
+                  </Input>
+                  
+                  {/* Autocomplete dropdown */}
+                  {showAutocomplete && autocompleteResults.length > 0 && (
+                    <View className="absolute top-12 left-0 right-0 bg-white rounded-lg shadow-lg z-10 max-h-64 overflow-hidden">
+                      <FlatList
+                        data={autocompleteResults}
+                        renderItem={renderAutocompleteItem}
+                        keyExtractor={getItemKey}
+                        keyboardShouldPersistTaps="handled"
+                      />
+                    </View>
+                  )}
+                </View>
               </Box>
             </View>
           </DrawerHeader>
@@ -228,7 +312,7 @@ export default function CustomerSelector({
               ListEmptyComponent={
                 <View className="py-5 items-center">
                   <Text className="text-gray-600 text-center">
-                    {searchText.length < 1 // Changed from 3 to 1
+                    {searchText.length < 1
                       ? "Type at least 1 character to search"
                       : loading
                       ? "Searching..."

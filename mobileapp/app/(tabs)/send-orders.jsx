@@ -277,28 +277,33 @@ export default function SendOrders() {
                           </HStack>
                           <HStack space="xs" alignItems="center" className="mt-2">
                             <Store size={16} className="text-gray-600" />
-                            <Text className="text-base font-semibold text-gray-900">{order.xcusname}</Text>
+                            <Text className="text-base font-semibold text-gray-900">
+                                  {order.xcusname.length > 25 ? order.xcusname.substring(0, 25) + "..." : order.xcusname}
+                            </Text>
                           </HStack>
                           <HStack space="xs" alignItems="center" className="mt-0.5">
                             <MapPin size={14} className="text-gray-500" />
-                            <Text className="text-xs text-gray-500">{order.xcusadd}</Text>
+                            <Text className="text-xs text-gray-500">
+                              {order.xcusadd.length > 30 ? order.xcusadd.substring(0, 30) + "..." : order.xcusadd}
+                              
+                            </Text>
                           </HStack>
                         </VStack>
                         <HStack space="sm">
                           <Button
-                            size="lg"
+                            size="sm"
                             variant="outline"
                             action="error"
                             onPress={() => deleteOrder(order)}
-                            className="rounded-full p-3.5 border-red-200 active:bg-red-50 "
+                            className="rounded-full p-3 border-red-200 active:bg-red-50 "
                           >
                             <ButtonIcon as={Trash2} className="text-red-500" />
                           </Button>
                           <Button
-                            size="lg"
+                            size="sm"
                             onPress={() => sendOrder(order)}
                             disabled={loadingState.sending}
-                            className="rounded-full p-3.5 bg-warning-500 active:bg-warning-600"
+                            className="rounded-full p-3 bg-warning-500 active:bg-warning-600"
                           >
                             {loadingState.sending && loadingState.currentOrderId === order.zid ? (
                               <Spinner size="small" color="$white" />
@@ -320,17 +325,18 @@ export default function SendOrders() {
                               {/* Item Name on the left */}
                               <HStack space="sm" alignItems="center" flex={1}>
                                 <Package size={18} className="text-warning-600" />
-                                <Text className="text-xs font-md font-bold text-gray-500 truncate whitespace-nowrap">
-                                  {item.xitem}--{item.xdesc}
-                                </Text>
+                                <Text className="text-2xs font-semibold text-gray-500 truncate whitespace-nowrap" numberOfLines={1} ellipsizeMode="tail">
+                                {`${item.xitem} -- ${item.xdesc}`}
+                              </Text>
+
 
                               </HStack>
 
                               <Button
-                                size="xs"
+                                size="xxs"
                                 variant="outline"
                                 onPress={() => deleteItem(order, itemIndex)}
-                                className="border-none ml-auto"
+                                className="border-0 ml-auto"
                               >
                                 <ButtonIcon as={Trash2} size={15} className="text-error-700" />
                               </Button>
@@ -339,23 +345,12 @@ export default function SendOrders() {
 
                             <HStack justifyContent="space-between" alignItems="center" className="bg-error-50 opacity-80 p-2 rounded-xl">
                               <HStack space="sm" alignItems="center">
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  onPress={() => updateQuantity(order, itemIndex, -1)}
-                                  className=" border-none"
-                                >
-                                  <ButtonIcon as={MinusCircle} size={15} className="text-warning-700" />
-                                </Button>
+
+                                <Text onPress={() => updateQuantity(order, itemIndex, -1)} className="text-2xl font-semibold text-warning--900">-</Text>
                                 <Text className="text-base font-semibold text-warning-900">{item.xqty}</Text>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  onPress={() => updateQuantity(order, itemIndex, 1)}
-                                  className=" border-none"
-                                >
-                                  <ButtonIcon as={PlusCircle} size={15} className="text-warning-700" />
-                                </Button>
+
+                                <Text onPress={() => updateQuantity(order, itemIndex, 1)} className="text-base font-semibold text-warning-900">+</Text>
+                                
                               </HStack>
 
                               <HStack space="sm" alignItems="center">

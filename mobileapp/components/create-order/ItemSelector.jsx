@@ -15,6 +15,7 @@ import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
+import { debounce } from 'lodash';
 
 const ItemCard = ({ item, onSelect }) => (
   <TouchableOpacity
@@ -71,22 +72,52 @@ export default function ItemSelector({
   searchText,
   setSearchText,
   onLoadMore,
-  hasMoreItems
+  hasMoreItems,
+  onSearch // Added param for search function
 }) {
   const inputRef = useRef(null);
   const drawerInputRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [autocompleteResults, setAutocompleteResults] = useState([]);
   const loadingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   const scrollOffset = useRef(0);
   const onEndReachedCalledDuringMomentum = useRef(false);
   const isLoadingMoreRef = useRef(false);
 
+  // Create debounced search function
+  const debouncedSearch = useRef(
+    debounce((text) => {
+      if (text.length >= 1) {
+        onSearch(text);
+        setShowAutocomplete(true);
+      } else {
+        setShowAutocomplete(false);
+        setAutocompleteResults([]);
+      }
+    }, 300)
+  ).current;
+
+  // Update autocomplete results when items change
+  useEffect(() => {
+    if (searchText.length >= 1 && !loading) {
+      setAutocompleteResults(items.slice(0, 5)); // Show top 5 matches as autocomplete
+    }
+  }, [items, loading, searchText]);
+
   const handleSearchChange = useCallback((text) => {
     setSearchText(text);
     isTypingRef.current = true;
-  }, [setSearchText]);
+    debouncedSearch(text);
+  }, [setSearchText, debouncedSearch]);
+
+  const handleAutocompleteSelect = useCallback((item) => {
+    setSearchText(item.item_name);
+    setShowAutocomplete(false);
+    onSearch(item.item_name);
+  }, [setSearchText, onSearch]);
 
   const handleLoadMore = useCallback(() => {
     if (onEndReachedCalledDuringMomentum.current) return;
@@ -94,7 +125,7 @@ export default function ItemSelector({
     if (!loading && 
         !loadingMore && 
         hasMoreItems && 
-        searchText.length >= 1 && // Changed from 3 to 1
+        searchText.length >= 1 &&
         !isLoadingMoreRef.current && 
         scrollOffset.current > 0) {
       isLoadingMoreRef.current = true;
@@ -111,20 +142,17 @@ export default function ItemSelector({
       onEndReachedCalledDuringMomentum.current = false;
       isLoadingMoreRef.current = false;
     }
-
-    if (isFocused) {
-      Keyboard.dismiss();
-      setIsFocused(false);
-    }
-  }, [isFocused]);
+  }, []);
 
   useEffect(() => {
     return () => {
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
+      // Clean up debounce function
+      debouncedSearch.cancel();
     };
-  }, []);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     if (loading) {
@@ -153,6 +181,26 @@ export default function ItemSelector({
     />
   ), [onItemSelect, setShowItemSheet]);
 
+  const renderAutocompleteItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      onPress={() => handleAutocompleteSelect(item)}
+      className="px-4 py-2 border-b border-gray-100"
+    >
+      <View className="flex-row items-center">
+        <ShoppingCart size={16} className="text-gray-400 mr-2" />
+        <Text className="text-gray-800 font-medium">{item.item_name}</Text>
+      </View>
+      <Text className="text-xs text-gray-500 ml-6">
+        {item.stock ? `Stock: ${item.stock}${item.std_price ? ` • ৳${item.std_price}` : ''}` : 
+         item.std_price ? `৳${item.std_price}` : `ID: ${item.item_id}`}
+      </Text>
+    </TouchableOpacity>
+  ), [handleAutocompleteSelect]);
+
+  const getItemKey = useCallback((item) => 
+    `item-${item.item_id}-${zid}`, 
+  [zid]);
+
   return (
     <VStack space="md">
       <Button
@@ -171,6 +219,7 @@ export default function ItemSelector({
         isOpen={showItemSheet}
         onClose={() => {
           setShowItemSheet(false);
+          setShowAutocomplete(false);
           Keyboard.dismiss();
         }}
         size="full"
@@ -183,33 +232,68 @@ export default function ItemSelector({
               <Text className="text-xs text-gray-600 uppercase mb-1">Select Item from</Text>
               <View className="flex-row justify-between items-center">
                 <Heading size="lg">Business</Heading>
-                <View className="bg-primary-100 px-2 py-1 rounded-lg">
-                  <Text className="text-purple-800 font-semibold">ZID {zid}</Text>
+                <View className="bg-orange-400 px-2 py-1 rounded-lg">
+                  <Text className="text-white font-semibold">ZID {zid}</Text>
                 </View>
               </View>
 
-              <Box className="mt-4">
-                <Input
-                  size="md"
-                  className="bg-white border border-gray-200 rounded-xl "
-                >
-                  <InputField
-                    ref={drawerInputRef}
-                    placeholder={`Search items in ZID ${zid}...`}
-                    value={searchText}
-                    onChangeText={handleSearchChange}
-                    className="text-sm"
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    autoCorrect={false}
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    returnKeyType="search"
-                  />
-                  <InputSlot px="$3">
-                    <InputIcon as={Search} size={18} className="text-gray-400" />
-                  </InputSlot>
-                </Input>
+              <Box className="mt-4 w-[280px]">
+                <View className="relative">
+                  <Input
+                    size="sm"
+                    className="bg-white border border-gray-200 rounded-xl w-full h-10"
+                  >
+                    <InputField
+                      ref={drawerInputRef}
+                      placeholder={`Search items in ZID ${zid}...`}
+                      value={searchText}
+                      onChangeText={handleSearchChange}
+                      className="text-sm"
+                      onFocus={() => {
+                        setIsFocused(true);
+                        if (searchText.length >= 1 && autocompleteResults.length > 0) {
+                          setShowAutocomplete(true);
+                        }
+                      }}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        // Delay hiding autocomplete to allow for selection
+                        setTimeout(() => setShowAutocomplete(false), 150);
+                      }}
+                      autoCorrect={false}
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      returnKeyType="search"
+                    />
+                    <InputSlot px="$3">
+                      {searchText ? (
+                        <TouchableOpacity 
+                          onPress={() => {
+                            setSearchText('');
+                            setShowAutocomplete(false);
+                          }}
+                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        >
+                          <InputIcon as={X} size={18} className="text-gray-400" />
+                        </TouchableOpacity>
+                      ) : (
+                        <InputIcon as={Search} size={18} className="text-gray-400" />
+                      )}
+                    </InputSlot>
+                  </Input>
+
+                  {/* Autocomplete dropdown */}
+                  {showAutocomplete && autocompleteResults.length > 0 && (
+                    <View className="absolute top-12 left-0 right-0 bg-white rounded-lg shadow-lg z-10 max-h-64 overflow-hidden">
+                      <FlatList
+                        data={autocompleteResults}
+                        renderItem={renderAutocompleteItem}
+                        keyExtractor={getItemKey}
+                        keyboardShouldPersistTaps="handled"
+                      />
+                    </View>
+                  )}
+                </View>
               </Box>
             </View>
           </DrawerHeader>
@@ -218,11 +302,11 @@ export default function ItemSelector({
             <FlatList
               data={items}
               renderItem={renderItem}
-              keyExtractor={(item) => item.item_id}
+              keyExtractor={getItemKey}
               ListEmptyComponent={
                 <View className="py-5 items-center">
                   <Text className="text-gray-600 text-center">
-                    {searchText.length < 1 // Changed from 3 to 1
+                    {searchText.length < 1
                       ? "Type at least 1 character to search"
                       : loading
                       ? "Searching..."
