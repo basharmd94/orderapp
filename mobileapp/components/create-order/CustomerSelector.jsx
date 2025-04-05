@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { View, FlatList, TouchableOpacity, Keyboard } from 'react-native';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { ChevronDown, Search, X, Phone, MapPin, Building } from 'lucide-react-native';
@@ -17,20 +17,20 @@ import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
 import { debounce } from 'lodash';
 
-const CustomerCard = ({ customer, onSelect }) => (
+// Memoize CustomerCard for better performance
+const CustomerCard = memo(({ customer, onSelect }) => (
   <TouchableOpacity
     onPress={onSelect}
     activeOpacity={0.7}
     className="mx-4 my-2"
   >
-    <View className="bg-white rounded-2xl border border-gray-200  p-4">
+    <View className="bg-white rounded-2xl border border-gray-200 p-4">
       <View className="flex-row items-center">
         <View className="bg-warning-50 p-3 rounded-xl mr-3">
-          <Building size={20} className = "text-warning-500" />
+          <Building size={20} className="text-warning-500" />
         </View>
         <View className="flex-1">
-          
-          <Text className="text-lg font-semibold text-gray-900">
+          <Text className="text-lg font-semibold text-gray-900" numberOfLines={1} ellipsizeMode="tail">
             {customer.xorg}
           </Text>
           <Text className="text-sm text-gray-600 mt-1">
@@ -44,13 +44,13 @@ const CustomerCard = ({ customer, onSelect }) => (
       <View className="flex-row justify-between mt-1">
         <View className="flex-row items-center flex-1">
           <Phone size={16} color="#666666" />
-          <Text className="ml-2 text-sm text-gray-600">
+          <Text className="ml-2 text-sm text-gray-600" numberOfLines={1} ellipsizeMode="tail">
             {customer.xtaxnum || 'No phone'}
           </Text>
         </View>
         <View className="flex-row items-center flex-1">
           <MapPin size={16} color="#666666" />
-          <Text className="ml-2 text-sm text-gray-600 truncate">
+          <Text className="ml-2 text-sm text-gray-600" numberOfLines={1} ellipsizeMode="tail">
             {customer.xcity || 'No city'}
           </Text>
         </View>
@@ -58,13 +58,14 @@ const CustomerCard = ({ customer, onSelect }) => (
 
       {customer.xadd1 && (
         <View className="bg-gray-100 p-2 rounded-lg mt-2">
-          <Text className="text-sm text-gray-600">{customer.xadd1}</Text>
+          <Text className="text-sm text-gray-600" numberOfLines={2} ellipsizeMode="tail">{customer.xadd1}</Text>
         </View>
       )}
     </View>
   </TouchableOpacity>
-);
+));
 
+// Use React.memo for the whole component for better performance
 export default function CustomerSelector({
   zid,
   customerName,
@@ -74,107 +75,64 @@ export default function CustomerSelector({
   onCustomerSelect,
   customers,
   loading,
-  loadingMore,
   searchText,
   setSearchText,
-  onLoadMore,
-  hasMoreData,
-  onSearch, // Added param for search function
+  onSearch
 }) {
-  const inputRef = useRef(null);
   const drawerInputRef = useRef(null);
-  const [isFocused, setIsFocused] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const [showAutocomplete, setShowAutocomplete] = useState(false);
-  const [autocompleteResults, setAutocompleteResults] = useState([]);
-  const loadingTimeoutRef = useRef(null);
-  const isTypingRef = useRef(false);
-  const scrollOffset = useRef(0);
-  const onEndReachedCalledDuringMomentum = useRef(false);
-  const isLoadingMoreRef = useRef(false);
-
+  const [localSearchText, setLocalSearchText] = useState('');
+  const initialSearchDoneRef = useRef(false);
+  
   // Create debounced search function
-  const debouncedSearch = useRef(
+  const debouncedSearch = useCallback(
     debounce((text) => {
+      setSearchText(text);
       if (text.length >= 1) {
         onSearch(text);
-        setShowAutocomplete(true);
       } else {
-        setShowAutocomplete(false);
-        setAutocompleteResults([]);
+        // Clear customers when search is empty
+        setSearchText('');
+        onSearch('');
       }
-    }, 300)
-  ).current;
-
-  // Update autocomplete results when customers change
-  useEffect(() => {
-    if (searchText.length >= 1 && !loading) {
-      setAutocompleteResults(customers.slice(0, 5)); // Show top 5 matches as autocomplete
-    }
-  }, [customers, loading, searchText]);
+    }, 400),
+    [setSearchText, onSearch]
+  );
 
   const handleSearchChange = useCallback((text) => {
-    setSearchText(text);
-    isTypingRef.current = true;
+    setLocalSearchText(text);
     debouncedSearch(text);
-  }, [setSearchText, debouncedSearch]);
+  }, [debouncedSearch]);
 
-  const handleAutocompleteSelect = useCallback((item) => {
-    setSearchText(item.xorg);
-    setShowAutocomplete(false);
-    onSearch(item.xorg);
-  }, [setSearchText, onSearch]);
-
-  const handleLoadMore = useCallback(() => {
-    if (onEndReachedCalledDuringMomentum.current) return;
-    
-    if (!loading && 
-        !loadingMore && 
-        hasMoreData && 
-        searchText.length >= 1 && 
-        !isLoadingMoreRef.current && 
-        scrollOffset.current > 0) {
-      isLoadingMoreRef.current = true;
-      onLoadMore();
-      onEndReachedCalledDuringMomentum.current = true;
-    }
-  }, [loading, loadingMore, hasMoreData, searchText, onLoadMore]);
-
-  const handleScroll = useCallback((event) => {
-    const currentOffset = event.nativeEvent.contentOffset.y;
-    scrollOffset.current = currentOffset;
-    
-    if (currentOffset <= 0) {
-      onEndReachedCalledDuringMomentum.current = false;
-      isLoadingMoreRef.current = false;
-    }
-  }, []);
-
+  // Clean up debounce on unmount
   useEffect(() => {
     return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-      // Clean up debounce function
-      debouncedSearch.cancel();
+      debouncedSearch.cancel?.();
     };
   }, [debouncedSearch]);
 
+  // Sync localSearchText with searchText when the drawer opens
   useEffect(() => {
-    if (loading) {
-      loadingTimeoutRef.current = setTimeout(() => {
-        setShowSearchResults(true);
-      }, 300);
-    } else {
-      setShowSearchResults(false);
-    }
-
-    return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
+    if (showCustomerSheet) {
+      setLocalSearchText(searchText || '');
+      
+      // Only trigger search on initial open if searchText exists
+      if (searchText?.length >= 1 && !initialSearchDoneRef.current) {
+        initialSearchDoneRef.current = true;
+        setTimeout(() => {
+          onSearch(searchText);
+        }, 0);
       }
-    };
-  }, [loading]);
+    } else {
+      // Reset flag when drawer closes
+      initialSearchDoneRef.current = false;
+    }
+  }, [showCustomerSheet, searchText, onSearch]);
+
+  const handleClearSearch = useCallback(() => {
+    setLocalSearchText('');
+    setSearchText('');
+    onSearch('');
+  }, [setSearchText, onSearch]);
 
   const renderItem = useCallback(({ item }) => (
     <CustomerCard
@@ -186,22 +144,6 @@ export default function CustomerSelector({
       }}
     />
   ), [onCustomerSelect, setShowCustomerSheet]);
-
-  const renderAutocompleteItem = useCallback(({ item }) => (
-    <TouchableOpacity
-      onPress={() => handleAutocompleteSelect(item)}
-      className="px-4 py-2 border-b border-gray-100"
-    >
-      <View className="flex-row items-center">
-        <Building size={16} className="text-gray-400 mr-2" />
-        <Text className="text-gray-800 font-medium">{item.xorg}</Text>
-      </View>
-      <Text className="text-xs text-gray-500 ml-6">
-        {item.xcity ? `${item.xcity}${item.xtaxnum ? ` • ${item.xtaxnum}` : ''}` : 
-          item.xtaxnum ? item.xtaxnum : 'ID: ' + item.xcus}
-      </Text>
-    </TouchableOpacity>
-  ), [handleAutocompleteSelect]);
 
   const getItemKey = useCallback((item) => 
     `customer-${item.xcus}-${item.zid}`, 
@@ -225,7 +167,6 @@ export default function CustomerSelector({
         isOpen={showCustomerSheet}
         onClose={() => {
           setShowCustomerSheet(false);
-          setShowAutocomplete(false);
           Keyboard.dismiss();
         }}
         size="full"
@@ -252,32 +193,18 @@ export default function CustomerSelector({
                     <InputField
                       ref={drawerInputRef}
                       placeholder={`Search customers in ZID ${zid}...`}
-                      value={searchText}
+                      value={localSearchText}
                       onChangeText={handleSearchChange}
                       className="text-sm"
-                      onFocus={() => {
-                        setIsFocused(true);
-                        if (searchText.length >= 1 && autocompleteResults.length > 0) {
-                          setShowAutocomplete(true);
-                        }
-                      }}
-                      onBlur={() => {
-                        setIsFocused(false);
-                        // Delay hiding autocomplete to allow for selection
-                        setTimeout(() => setShowAutocomplete(false), 150);
-                      }}
                       autoCorrect={false}
                       spellCheck={false}
                       autoCapitalize="none"
                       returnKeyType="search"
                     />
                     <InputSlot px="$3">
-                      {searchText ? (
+                      {localSearchText ? (
                         <TouchableOpacity 
-                          onPress={() => {
-                            setSearchText('');
-                            setShowAutocomplete(false);
-                          }}
+                          onPress={handleClearSearch}
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
                           <InputIcon as={X} size={18} className="text-gray-400" />
@@ -287,18 +214,6 @@ export default function CustomerSelector({
                       )}
                     </InputSlot>
                   </Input>
-                  
-                  {/* Autocomplete dropdown */}
-                  {showAutocomplete && autocompleteResults.length > 0 && (
-                    <View className="absolute top-12 left-0 right-0 bg-white rounded-lg shadow-lg z-10 max-h-64 overflow-hidden">
-                      <FlatList
-                        data={autocompleteResults}
-                        renderItem={renderAutocompleteItem}
-                        keyExtractor={getItemKey}
-                        keyboardShouldPersistTaps="handled"
-                      />
-                    </View>
-                  )}
                 </View>
               </Box>
             </View>
@@ -312,7 +227,7 @@ export default function CustomerSelector({
               ListEmptyComponent={
                 <View className="py-5 items-center">
                   <Text className="text-gray-600 text-center">
-                    {searchText.length < 1
+                    {localSearchText.length < 1
                       ? "Type at least 1 character to search"
                       : loading
                       ? "Searching..."
@@ -320,25 +235,11 @@ export default function CustomerSelector({
                   </Text>
                 </View>
               }
-              ListFooterComponent={
-                loadingMore ? (
-                  <View className="py-5 items-center">
-                    <Spinner size="small" color="$primary500" />
-                    <Text className="mt-2 text-gray-600">Loading more...</Text>
-                  </View>
-                ) : null 
-              }
-              onEndReached={handleLoadMore}
-              onMomentumScrollBegin={() => {
-                onEndReachedCalledDuringMomentum.current = false;
-              }}
-              onEndReachedThreshold={0.5}
-              removeClippedSubviews={false}
+              removeClippedSubviews={true}
               initialNumToRender={10}
-              maxToRenderPerBatch={5}
+              maxToRenderPerBatch={10}
               updateCellsBatchingPeriod={50}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
+              windowSize={11}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               style={{ flex: 1 }}
