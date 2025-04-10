@@ -2,7 +2,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Heading } from "@/components/ui/heading";
-import { ScrollView } from "react-native";
+import { ScrollView, View, TouchableOpacity } from "react-native";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Button, ButtonText, ButtonIcon, ButtonSpinner } from "@/components/ui/button";
@@ -11,13 +11,14 @@ import { Avatar } from "@/components/ui/avatar";
 import { AvatarFallbackText } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Divider } from "@/components/ui/divider";
-import { LogOut, Mail, Phone, Building, Terminal, Shield, Database } from 'lucide-react-native';
+import { LogOut, Mail, Phone, Building, Terminal, Shield, Database, Package } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useState } from 'react';
 import syncCustomers from '@/utils/syncCustomer';
+import syncItems from '@/utils/syncItems';
 import colors from "tailwindcss/colors";
-import { Alert, AlertText, AlertIcon } from "@/components/ui/alert"; // Added Alert imports
-import { InfoIcon } from "@/components/ui/icon"; // Added InfoIcon
+import { Alert, AlertText, AlertIcon } from "@/components/ui/alert";
+import { InfoIcon } from "@/components/ui/icon";
 
 const ProfileItem = ({ icon: Icon, label, value }) => (
   <HStack space="md" className="items-center py-3">
@@ -31,10 +32,32 @@ const ProfileItem = ({ icon: Icon, label, value }) => (
   </HStack>
 );
 
+const ActionButton = ({ icon: Icon, label, onPress, isLoading, color }) => (
+  <TouchableOpacity 
+    onPress={onPress} 
+    disabled={isLoading}
+    className="items-center justify-center"
+  >
+    <Box 
+      className={`w-16 h-16 rounded-full items-center justify-center ${color}`}
+    >
+      {isLoading ? (
+        <ButtonSpinner color={colors.white} />
+      ) : (
+        <Icon size={25} color="#fff" />
+      )}
+    </Box>
+    <Text className="text-xs text-gray-700 mt-2 font-medium text-center">
+      {isLoading ? 'Syncing...' : label}
+    </Text>
+  </TouchableOpacity>
+);
+
 export default function Profile() {
   const { user, logout } = useAuth();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [showSyncAlert, setShowSyncAlert] = useState(false); // State for alert
+  const [isSyncingCustomers, setIsSyncingCustomers] = useState(false);
+  const [isSyncingItems, setIsSyncingItems] = useState(false);
+  const [syncAlert, setSyncAlert] = useState({ show: false, message: '' });
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -45,22 +68,55 @@ export default function Profile() {
       .toUpperCase();
   };
 
-  const handleSync = async () => {
+  const handleSyncCustomers = async () => {
     if (!user?.user_id) {
       console.error('No employee ID available for sync');
       return;
     }
-    setIsSyncing(true);
-    setShowSyncAlert(false); // Reset alert
+    setIsSyncingCustomers(true);
+    setSyncAlert({ show: false, message: '' });
     try {
-      const success = await syncCustomers(user.user_id);
-      if (success) {
-        setShowSyncAlert(true); // Show alert on success
+      const result = await syncCustomers(user.user_id);
+      if (result.success) {
+        let message = result.message;
+        if (!message) {
+          if (result.totalCustomers === -1) {
+            message = 'Customer sync completed successfully';
+          } else {
+            message = `Customer Sync Completed: ${result.updatedCustomers} customers updated out of ${result.totalCustomers} total customers`;
+          }
+        }
+        setSyncAlert({ show: true, message });
       }
     } catch (error) {
-      console.error('Sync failed:', error);
+      console.error('Customer sync failed:', error);
+      setSyncAlert({ show: true, message: 'Customer Sync Failed!' });
     } finally {
-      setIsSyncing(false);
+      setIsSyncingCustomers(false);
+    }
+  };
+
+  const handleSyncItems = async () => {
+    setIsSyncingItems(true);
+    setSyncAlert({ show: false, message: '' });
+    try {
+      const result = await syncItems();
+      if (result.success) {
+        let message = result.message;
+        if (!message) {
+          if (result.totalItems === -1) {
+            message = 'Item sync completed successfully';
+          } else {
+            message = `Items Sync Completed: ${result.updatedItems} items updated out of ${result.totalItems} total items`;
+          }
+        }
+        setSyncAlert({ show: true, message });
+      }
+    } catch (error) {
+      console.error('Items sync failed:', error);
+      setSyncAlert({ show: true, message: 'Items Sync Failed!' });
+    } finally {
+      setIsSyncingItems(false);
     }
   };
 
@@ -70,7 +126,7 @@ export default function Profile() {
         <Box className="p-4">
           <Animated.View 
             entering={FadeInDown.duration(500).springify()}
-            className="items-center mb-6"
+            className="items-center mb-4"
           >
             <Avatar size="2xl" className="bg-orange-400 mb-4">
               <AvatarFallbackText>
@@ -80,9 +136,40 @@ export default function Profile() {
             <Heading size="xl" className="text-gray-900">
               {user?.username || 'User'}
             </Heading>
-            <Text className="text-gray-500 mt-1">
+            <Text className="text-gray-500 mt-1 mb-4">
               Employee ID: {user?.user_id || 'N/A'}
             </Text>
+            
+            {/* New horizontal grid of action buttons */}
+            <Animated.View 
+              entering={FadeInDown.delay(50).duration(500).springify()}
+              className="w-full"
+            >
+              <HStack space="lg" className="justify-center mb-4">
+                <ActionButton 
+                  icon={Package} 
+                  label="Sync Items" 
+                  onPress={handleSyncItems}
+                  isLoading={isSyncingItems}
+                  color="bg-emerald-500"
+                />
+
+                <ActionButton 
+                  icon={Database} 
+                  label="Sync Customers" 
+                  onPress={handleSyncCustomers}
+                  isLoading={isSyncingCustomers}
+                  color="bg-orange-400"
+                />
+                <ActionButton 
+                  icon={LogOut} 
+                  label="Logout" 
+                  onPress={logout}
+                  
+                  color="bg-gray-800"
+                />
+              </HStack>
+            </Animated.View>
           </Animated.View>
 
           <Animated.View 
@@ -124,50 +211,16 @@ export default function Profile() {
             </Card>
 
             {/* Sync Alert */}
-            {showSyncAlert && (
+            {syncAlert.show && (
               <Animated.View entering={FadeInDown.duration(300)}>
                 <Alert action="info" variant="solid" className="mb-4">
                   <AlertIcon as={InfoIcon} />
-                  <AlertText>Sync Completed Successfully!</AlertText>
+                  <AlertText>{syncAlert.message}</AlertText>
                 </Alert>
               </Animated.View>
             )}
 
-            {/* Sync Customers Button */}
-            <Button
-              size="lg"
-              variant="solid"
-              action="primary"
-              onPress={handleSync}
-              className="mt-4 bg-blue-500"
-              isDisabled={isSyncing}
-            >
-              {isSyncing ? (
-                <>
-                  <ButtonSpinner color={colors.gray[400]} />
-                  <ButtonText className="font-medium text-sm ml-2 text-white">
-                    Syncing...
-                  </ButtonText>
-                </>
-              ) : (
-                <>
-                  <ButtonIcon as={Database} className="mr-2 text-white" />
-                  <ButtonText className="text-white">Sync Customers</ButtonText>
-                </>
-              )}
-            </Button>
-
-            {/* Logout Button */}
-            <Button
-              size="lg"
-              variant="outline"
-              action="error"
-              onPress={logout}
-              className="mt-4 bg-orange-400 border-0"
-            >
-              <ButtonIcon as={LogOut} className="mr-2 text-error-600 text-white" />
-              <ButtonText>Logout</ButtonText>
-            </Button>
+            {/* Original buttons removed from here */}
           </Animated.View>
         </Box>
       </ScrollView>

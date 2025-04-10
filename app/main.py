@@ -18,6 +18,7 @@ from routers import (
     customers_route,
     orders_route,
     rbac_route,
+    user_manage_route,  # Add this import
 )
 from database import engine, Base, get_db
 from logs import setup_logger
@@ -34,7 +35,7 @@ def validate_env_vars():
     required_env_vars = {
         "SECRET_KEY": lambda x: len(x) >= 32,  # At least 32 chars for security
         "ALGORITHM": lambda x: x in ["HS256", "HS384", "HS512"],  # Only allow HMAC-SHA algorithms
-        "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 5 <= int(x) <= 60,  # Between 5-60 minutes
+        "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 60 <= int(x) <= 120,  # Between 5-60 minutes
         "REFRESH_TOKEN_EXPIRE_DAYS": lambda x: x.isdigit() and 1 <= int(x) <= 30,  # Between 1-30 days
         "DATABASE_URL": lambda x: x.startswith(("postgresql+asyncpg://", "postgresql://")),
         "MAX_LOGIN_ATTEMPTS": lambda x: x.isdigit() and 1 <= int(x) <= 10,
@@ -308,6 +309,8 @@ router_configs = [
 # Include all routers
 for config in router_configs:
     app.include_router(**config)
+
+app.include_router(user_manage_route.router, prefix="/api/v1/admin", tags=["User Management"])  # Add this line
 
 # Development routes (should be disabled in production)
 if app.debug:

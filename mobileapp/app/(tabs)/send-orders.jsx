@@ -11,7 +11,7 @@ import { Fab, FabLabel, FabIcon } from "@/components/ui/fab";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogBody, AlertDialogBackdrop } from "@/components/ui/alert-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   Send,
   Trash2,
@@ -42,6 +42,182 @@ import { useOrderStore } from "@/stores/orderStore";
 import Animated, { useAnimatedStyle, withRepeat, withSequence, withSpring } from 'react-native-reanimated';
 import { Badge, BadgeIcon, BadgeText } from "@/components/ui/badge";
 
+// Memoized components to prevent unnecessary re-renders
+const MemoizedOrderItem = memo(function OrderItem({ item, itemIndex, onDelete, onUpdateQuantity }) {
+  return (
+    <Box className="px-4">
+      {itemIndex > 0 && <Divider className="my-.2 opacity-10" />}
+      <VStack space="sm" className="bg-warning-50 rounded-xl py-3 px-3">
+        <HStack justifyContent="space-between" alignItems="center">
+          <HStack space="sm" alignItems="center" flex={1}>
+            <Package size={18} className="text-warning-600" />
+            <Text className="text-2xs font-semibold text-gray-500 truncate whitespace-nowrap" numberOfLines={1} ellipsizeMode="tail">
+              {`${item.xitem} -- ${item.xdesc}`}
+            </Text>
+          </HStack>
+
+          <Button
+            size="xxs"
+            variant="outline"
+            onPress={onDelete}
+            className="border-0 ml-auto"
+          >
+            <ButtonIcon as={Trash2} size={15} className="text-error-700" />
+          </Button>
+        </HStack>
+
+        <HStack justifyContent="space-between" alignItems="center" className="bg-error-50 opacity-80 p-2 rounded-xl">
+          <HStack space="sm" alignItems="center">
+            <Text onPress={() => onUpdateQuantity(-1)} className="text-2xl font-semibold text-warning--900">-</Text>
+            <Text className="text-base font-semibold text-warning-900">{item.xqty}</Text>
+            <Text onPress={() => onUpdateQuantity(1)} className="text-base font-semibold text-warning-900">+</Text>
+          </HStack>
+
+          <HStack space="sm" alignItems="center">
+            <Box className="bg-white px-3 py-1.5 rounded-full border border-warning-200">
+              <HStack space="xs" alignItems="center">
+                <Tag size={14} className="text-warning-600" />
+                <Text className="text-xs font-medium text-warning-700">৳{item.xprice}</Text>
+              </HStack>
+            </Box>
+            <ArrowRight size={14} className="text-warning-400" />
+            <Box className="bg-white px-3 py-1.5 rounded-full border border-warning-200">
+              <HStack space="xs" alignItems="center">
+                <CreditCard size={14} className="text-warning-600" />
+                <Text className="text-xs font-medium text-warning-700">৳{item.xlinetotal}</Text>
+              </HStack>
+            </Box>
+          </HStack>
+        </HStack>
+      </VStack>
+    </Box>
+  );
+});
+
+const MemoizedOrderCard = memo(function OrderCard({ order, index, onSend, onDelete, onUpdateQuantity, onDeleteItem, loadingState, calculateTotal }) {
+  const orderKey = `${order.zid}-${order.xcus}-${order.items[0].xsl}`;
+  
+  return (
+    <Card
+      key={orderKey}
+      className="bg-white border border-warning-100 rounded-2xl overflow-hidden transform transition-all duration-200 hover:-translate-y-0.5"
+    >
+      <VStack space="md">
+        {/* Order Header */}
+        <Box className="px-4 py-4 bg-gradient-to-r from-warning-100 via-warning-50 to-white border-b border-warning-100">
+          <HStack justifyContent="space-between" alignItems="center">
+            <VStack>
+              <HStack space="sm" alignItems="center">
+                <Box className="bg-warning-50 px-3 py-1.5 rounded-full border border-warning-200">
+                  <HStack space="xs" alignItems="center">
+                    <Store size={14} className="text-warning-700" />
+                    <Text className="text-xs font-semibold text-warning-700">{order.zid}</Text>
+                  </HStack>
+                </Box>
+                <Box className="bg-warning-50 px-3 py-1.5 rounded-full border border-warning-200">
+                  <HStack space="xs" alignItems="center">
+                    <Calendar size={14} className="text-warning-700" />
+                    <Text className="text-xs font-medium text-warning-700">
+                      {new Date().toLocaleDateString()}
+                    </Text>
+                  </HStack>
+                </Box>
+              </HStack>
+              <HStack space="xs" alignItems="center" className="mt-2">
+                <Store size={16} className="text-gray-600" />
+                <Text className="text-base font-semibold text-gray-900">
+                  {order.xcusname.length > 25 ? order.xcusname.substring(0, 25) + "..." : order.xcusname}
+                </Text>
+              </HStack>
+              <HStack space="xs" alignItems="center" className="mt-0.5">
+                <MapPin size={14} className="text-gray-500" />
+                <Text className="text-xs text-gray-500">
+                  {order.xcusadd.length > 30 ? order.xcusadd.substring(0, 30) + "..." : order.xcusadd}
+                </Text>
+              </HStack>
+            </VStack>
+            <HStack space="sm">
+              <Button
+                size="sm"
+                variant="outline"
+                action="error"
+                onPress={() => onDelete(order)}
+                className="rounded-full p-3 border-red-200 active:bg-red-50"
+              >
+                <ButtonIcon as={Trash2} className="text-red-500" />
+              </Button>
+              <Button
+                size="sm"
+                onPress={() => onSend(order)}
+                disabled={loadingState.sending}
+                className="rounded-full p-3 bg-warning-500 active:bg-warning-600"
+              >
+                {loadingState.sending && loadingState.currentOrderId === order.zid ? (
+                  <Spinner size="small" color="$white" />
+                ) : (
+                  <ButtonIcon as={Send} className="text-white" />
+                )}
+              </Button>
+            </HStack>
+          </HStack>
+        </Box>
+
+        {/* Order Items */}
+        <Box className="space-y-4">
+          {order.items.map((item, itemIndex) => (
+            <MemoizedOrderItem 
+              key={item.xsl} 
+              item={item} 
+              itemIndex={itemIndex}
+              onDelete={() => onDeleteItem(order, itemIndex)}
+              onUpdateQuantity={(change) => onUpdateQuantity(order, itemIndex, change)}
+            />
+          ))}
+        </Box>
+        
+        {/* Order Footer */}
+        <Box className="p-4 bg-gradient-to-b from-warning-50 to-warning-100 rounded-b-lg border-t border-warning-100 w-full">
+          <HStack className="w-full" justifyContent="between" alignItems="center">
+            <HStack className="flex-1 items-center" space="xs">
+              <Receipt size={16} className="text-warning-700" />
+              <Text className="text-sm font-medium text-warning-700 leading-tight">Total Amount</Text>
+            </HStack>
+            <Box className="bg-white px-4 py-1 rounded-full border border-warning-200">
+              <HStack className="items-center space-x-1">
+                <CreditCard size={14} className="text-warning-600" /> 
+                <Text className="text-base font-semibold text-warning-700 leading-none">
+                  ৳{calculateTotal(order.items)}
+                </Text>
+              </HStack>
+            </Box>
+          </HStack>
+        </Box>
+      </VStack>
+    </Card>
+  );
+});
+
+const EmptyState = memo(({ emptyStateIconStyle }) => (
+  <Card className="bg-white border border-warning-200 rounded-md overflow-hidden">
+    <Box className="p-6 flex flex-col items-center justify-center bg-gradient-to-b from-warning-50 to-warning-100">
+      <Box className="w-24 h-24 bg-warning-50 rounded-full flex items-center justify-center border-4 border-warning-200">
+        <Animated.View style={emptyStateIconStyle}>
+          <Send size={36} className="text-warning-500" />
+        </Animated.View>
+      </Box>
+      <VStack space="sm" alignItems="center" className="mt-4">
+        <Text className="text-lg font-semibold text-gray-900 text-center">No Orders Yet</Text>
+        <Text className="text-sm text-gray-600 text-center max-w-[220px] leading-relaxed">
+          Create your first order to get started.
+        </Text>
+      </VStack>
+      <Box className="mt-4 w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center border-4 border-white">
+        <Plus size={20} className="text-warning-600" />
+      </Box>
+    </Box>
+  </Card>
+));
+
 export default function SendOrders() {
   const { user } = useAuth();
   const { orders, loadOrders, updateOrder } = useOrderStore();
@@ -52,6 +228,8 @@ export default function SendOrders() {
   const [showAlertDialog, setShowAlertDialog] = useState(false);
   const toast = useToast();
   const AnimatedSend = Animated.createAnimatedComponent(Send);
+  const mountedRef = useRef(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const emptyStateIconStyle = useAnimatedStyle(() => ({
     transform: [
@@ -68,11 +246,19 @@ export default function SendOrders() {
     ]
   }));
 
+  // Load orders only on initial mount to avoid unnecessary rerenders when switching tabs
   useEffect(() => {
-    loadOrders();
+    if (isInitialLoad) {
+      loadOrders();
+      setIsInitialLoad(false);
+    }
+    
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
-  const showToast = (type, message) => {
+  const showToast = useCallback((type, message) => {
     const id = Math.random();
     toast.show({
       id,
@@ -97,9 +283,9 @@ export default function SendOrders() {
         );
       },
     });
-  };
+  }, [toast]);
 
-  const sendOrder = async (order) => {
+  const sendOrder = useCallback(async (order) => {
     setLoadingState(prev => ({ ...prev, sending: true, currentOrderId: order.zid }));
     try {
       await createBulkOrder([order]);
@@ -117,11 +303,13 @@ export default function SendOrders() {
       console.error("Error sending order:", error);
       showToast('error', 'Failed to send order. Please try again.');
     } finally {
-      setLoadingState(prev => ({ ...prev, sending: false, currentOrderId: null }));
+      if (mountedRef.current) {
+        setLoadingState(prev => ({ ...prev, sending: false, currentOrderId: null }));
+      }
     }
-  };
+  }, [orders, loadOrders, showToast]);
 
-  const deleteOrder = async (order) => {
+  const deleteOrder = useCallback(async (order) => {
     try {
       const remainingOrders = orders.filter(o =>
         o.zid !== order.zid ||
@@ -135,9 +323,9 @@ export default function SendOrders() {
     } catch (error) {
       showToast('error', 'Failed to delete order');
     }
-  };
+  }, [orders, loadOrders, showToast]);
 
-  const updateQuantity = async (order, itemIndex, change) => {
+  const updateQuantity = useCallback(async (order, itemIndex, change) => {
     const updatedOrder = { ...order };
     const item = updatedOrder.items[itemIndex];
     const newQty = Math.max(1, item.xqty + change);
@@ -154,15 +342,15 @@ export default function SendOrders() {
 
     await AsyncStorage.setItem("orders", JSON.stringify({ orders: updatedOrders }));
     await loadOrders();
-  };
+  }, [orders, loadOrders]);
 
-  const calculateTotal = (items) => {
+  const calculateTotal = useCallback((items) => {
     return items.reduce((sum, item) => sum + item.xlinetotal, 0);
-  };
+  }, []);
 
-  const handleClose = () => setShowAlertDialog(false);
+  const handleClose = useCallback(() => setShowAlertDialog(false), []);
 
-  const handleBulkSend = async () => {
+  const handleBulkSend = useCallback(async () => {
     setLoadingState(prev => ({ ...prev, sending: true }));
     try {
       const response = await createBulkOrder(orders);
@@ -173,13 +361,15 @@ export default function SendOrders() {
     } catch (error) {
       showToast('error', error.message || 'Failed to send orders');
     } finally {
-      setLoadingState(prev => ({ ...prev, sending: false }));
+      if (mountedRef.current) {
+        setLoadingState(prev => ({ ...prev, sending: false }));
+      }
       handleClose();
     }
-  };
+  }, [orders, loadOrders, showToast, handleClose]);
 
   // Delete specific Item
-  const deleteItem = async (order, itemIndex) => {
+  const deleteItem = useCallback(async (order, itemIndex) => {
     const updatedOrder = { ...order };
     
     // Remove the item from the order
@@ -203,11 +393,37 @@ export default function SendOrders() {
     } catch (error) {
       showToast('error', 'Failed to delete item');
     }
-  };
+  }, [orders, loadOrders, deleteOrder, showToast]);
+
+  // Memoized FAB component
+  const renderFAB = useCallback(() => {
+    return (
+      <Box className="fixed bottom-5 right-0 m-4 relative">
+        {orders.length > 0 && (
+          <Box className="absolute -top-[75px] -right-[-10px] bg-error-500 rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5 border-2 border-white z-50 transition-transform duration-200">
+            <Text className="text-[11px] font-bold text-white">{orders.length}</Text>
+          </Box>
+        )}
+        <Fab
+          size="lg"
+          placement="bottom right"
+          isDisabled={loadingState.sending || orders.length === 0}
+          onPress={() => setShowAlertDialog(true)}
+          className="bg-emerald-500 rounded-full active:scale-95 hover:scale-105 active:bg-emerald-600 p-4 transition-all duration-200"
+        >
+          {loadingState.sending ? (
+            <Spinner size="small" color="$white" />
+          ) : (
+            <FabIcon as={Send} className="text-white" />
+          )}
+        </Fab>
+      </Box>
+    );
+  }, [orders.length, loadingState.sending, showAlertDialog]);
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <Box className="px-4 py-3 bg-white  border-b border-warning-100 w-full">
+      <Box className="px-4 py-3 bg-white border-b border-warning-100 w-full">
         <HStack justifyContent="space-between" alignItems="center">
           {orders.length > 0 && (
             <Badge size="md" variant="outline" action="success" className="w-full flex-1 justify-center rounded-full">
@@ -219,190 +435,28 @@ export default function SendOrders() {
         </HStack>
       </Box>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        className="flex-1" 
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true} // Performance optimization
+      >
         <Box className="p-4">
           {orders.length === 0 ? (
-            <Card className="bg-white  border border-warning-200 rounded-md overflow-hidden">
-              {/* Header Background */}
-              <Box className="p-6 flex flex-col items-center justify-center bg-gradient-to-b from-warning-50 to-warning-100">
-                {/* Icon Section */}
-                <Box className="w-24 h-24 bg-warning-50 rounded-full flex items-center justify-center  border-4 border-warning-200">
-                  <Animated.View style={emptyStateIconStyle}>
-                    <Send size={36} className="text-warning-500" />
-                  </Animated.View>
-                </Box>
-
-                {/* Text Section */}
-                <VStack space="sm" alignItems="center" className="mt-4">
-                  <Text className="text-lg font-semibold text-gray-900 text-center">No Orders Yet</Text>
-                  <Text className="text-sm text-gray-600 text-center max-w-[220px] leading-relaxed">
-                    Create your first order to get started.
-                  </Text>
-                </VStack>
-
-                {/* Plus Button (Placed Below the Text) */}
-                <Box className="mt-4 w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center border-4 border-white ">
-                  <Plus size={20} className="text-warning-600" />
-                </Box>
-              </Box>
-            </Card>
-
+            <EmptyState emptyStateIconStyle={emptyStateIconStyle} />
           ) : (
             <VStack space="lg">
               {orders.map((order, index) => (
-                <Card
+                <MemoizedOrderCard
                   key={`${order.zid}-${order.xcus}-${order.items[0].xsl}`}
-                  className="bg-white  border border-warning-100 rounded-2xl overflow-hidden transform transition-all duration-200 hover:-translate-y-0.5"
-                >
-                  <VStack space="md">
-                    {/* Order Header */}
-                    <Box className="px-4 py-4 bg-gradient-to-r from-warning-100 via-warning-50 to-white border-b border-warning-100">
-                      <HStack justifyContent="space-between" alignItems="center">
-                        <VStack>
-                          <HStack space="sm" alignItems="center">
-                            <Box className="bg-warning-50 px-3 py-1.5 rounded-full border border-warning-200">
-                              <HStack space="xs" alignItems="center">
-                                <Store size={14} className="text-warning-700" />
-                                <Text className="text-xs font-semibold text-warning-700">{order.zid}</Text>
-                              </HStack>
-                            </Box>
-                            <Box className="bg-warning-50 px-3 py-1.5 rounded-full border border-warning-200">
-                              <HStack space="xs" alignItems="center">
-                                <Calendar size={14} className="text-warning-700" />
-                                <Text className="text-xs font-medium text-warning-700">
-                                  {new Date().toLocaleDateString()}
-                                </Text>
-                              </HStack>
-                            </Box>
-                          </HStack>
-                          <HStack space="xs" alignItems="center" className="mt-2">
-                            <Store size={16} className="text-gray-600" />
-                            <Text className="text-base font-semibold text-gray-900">{order.xcusname}</Text>
-                          </HStack>
-                          <HStack space="xs" alignItems="center" className="mt-0.5">
-                            <MapPin size={14} className="text-gray-500" />
-                            <Text className="text-xs text-gray-500">{order.xcusadd}</Text>
-                          </HStack>
-                        </VStack>
-                        <HStack space="sm">
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            action="error"
-                            onPress={() => deleteOrder(order)}
-                            className="rounded-full p-3.5 border-red-200 active:bg-red-50 "
-                          >
-                            <ButtonIcon as={Trash2} className="text-red-500" />
-                          </Button>
-                          <Button
-                            size="lg"
-                            onPress={() => sendOrder(order)}
-                            disabled={loadingState.sending}
-                            className="rounded-full p-3.5 bg-warning-500 active:bg-warning-600"
-                          >
-                            {loadingState.sending && loadingState.currentOrderId === order.zid ? (
-                              <Spinner size="small" color="$white" />
-                            ) : (
-                              <ButtonIcon as={Send} className="text-white" />
-                            )}
-                          </Button>
-                        </HStack>
-                      </HStack>
-                    </Box>
-
-                    {/* Order Items */}
-                    <Box className="space-y-4">
-                      {order.items.map((item, itemIndex) => (
-                        <Box key={item.xsl} className="px-4">
-                          {itemIndex > 0 && <Divider className="my-.2 opacity-10" />}
-                          <VStack space="sm" className="bg-warning-50 rounded-xl py-3 px-3">
-                            <HStack justifyContent="space-between" alignItems="center">
-                              {/* Item Name on the left */}
-                              <HStack space="sm" alignItems="center" flex={1}>
-                                <Package size={18} className="text-warning-600" />
-                                <Text className="text-xs font-md font-bold text-gray-500 truncate whitespace-nowrap">
-                                  {item.xitem}--{item.xdesc}
-                                </Text>
-
-                              </HStack>
-
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onPress={() => deleteItem(order, itemIndex)}
-                                className="border-none ml-auto"
-                              >
-                                <ButtonIcon as={Trash2} size={15} className="text-error-700" />
-                              </Button>
-
-                            </HStack>
-
-                            <HStack justifyContent="space-between" alignItems="center" className="bg-error-50 opacity-80 p-2 rounded-xl">
-                              <HStack space="sm" alignItems="center">
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  onPress={() => updateQuantity(order, itemIndex, -1)}
-                                  className=" border-none"
-                                >
-                                  <ButtonIcon as={MinusCircle} size={15} className="text-warning-700" />
-                                </Button>
-                                <Text className="text-base font-semibold text-warning-900">{item.xqty}</Text>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  onPress={() => updateQuantity(order, itemIndex, 1)}
-                                  className=" border-none"
-                                >
-                                  <ButtonIcon as={PlusCircle} size={15} className="text-warning-700" />
-                                </Button>
-                              </HStack>
-
-                              <HStack space="sm" alignItems="center">
-                                <Box className="bg-white px-3 py-1.5 rounded-full border border-warning-200">
-                                  <HStack space="xs" alignItems="center">
-                                    <Tag size={14} className="text-warning-600" />
-                                    <Text className="text-xs font-medium text-warning-700">৳{item.xprice}</Text>
-                                  </HStack>
-                                </Box>
-                                <ArrowRight size={14} className="text-warning-400" />
-                                <Box className="bg-white px-3 py-1.5 rounded-full border border-warning-200">
-                                  <HStack space="xs" alignItems="center">
-
-                                    <CreditCard size={14} className="text-warning-600" />
-                                    <Text className="text-xs font-medium text-warning-700">৳{item.xlinetotal}</Text>
-                                  </HStack>
-                                </Box>
-
-                              </HStack>
-                            </HStack>
-                          </VStack>
-                        </Box>
-                      ))}
-                    </Box>
-                    <Box className="p-4 bg-gradient-to-b from-warning-50 to-warning-100 rounded-b-lg border-t border-warning-100 w-full">
-  <HStack className="w-full" justifyContent="between" alignItems="center">
-    
-    {/* Total Amount Label */}
-    <HStack className="flex-1 items-center" space="xs">
-      <Receipt size={16} className="text-warning-700" />
-      <Text className="text-sm font-medium text-warning-700 leading-tight">Total Amount</Text>
-    </HStack>
-
-    {/* Value Badge - Properly Aligned */}
-    <Box className="bg-white px-4 py-1 rounded-full border border-warning-200">
-      <HStack className="items-center space-x-1">
-        <CreditCard size={14} className="text-warning-600" /> 
-        <Text className="text-base font-semibold text-warning-700 leading-none">৳{calculateTotal(order.items)}</Text>
-      </HStack>
-    </Box>
-
-  </HStack>
-</Box>
-
-
-                  </VStack>
-                </Card>
+                  order={order}
+                  index={index}
+                  onSend={sendOrder}
+                  onDelete={deleteOrder}
+                  onUpdateQuantity={updateQuantity}
+                  onDeleteItem={deleteItem}
+                  loadingState={loadingState}
+                  calculateTotal={calculateTotal}
+                />
               ))}
             </VStack>
           )}
@@ -439,57 +493,29 @@ export default function SendOrders() {
               action="secondary"
               onPress={handleClose}
               size="lg"
-              className="rounded-full p-3.5 border-warning-200  flex-1 max-w-[120px]"
+              className="rounded-full p-3.5 border-warning-200 flex-1 max-w-[120px]"
             >
               <ButtonIcon as={X} className="text-gray-700" />
-
             </Button>
             <Button
               size="lg"
               action="positive"
               onPress={handleBulkSend}
               isDisabled={loadingState.sending}
-              className="rounded-full p-3.5 bg-success-500  flex-1 max-w-[120px]"
+              className="rounded-full p-3.5 bg-success-500 flex-1 max-w-[120px]"
             >
               {loadingState.sending ? (
                 <Spinner size="small" color="$white" />
               ) : (
-                <>
-                  <ButtonIcon as={Send} className="text-white" />
-
-                </>
+                <ButtonIcon as={Send} className="text-white" />
               )}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Floating Action Button with Badge */}
-      <Box className="fixed bottom-5 right-0 m-4 relative">
-        {orders.length > 0 && (
-          <Box
-            className="absolute -top-[75px] -right-[-10px] bg-error-500 rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5  border-2 border-white z-50 transition-transform duration-200"
-          >
-            <Text className="text-[11px] font-bold text-white">{orders.length}</Text>
-          </Box>
-        )}
-        <Fab
-          size="lg"
-          placement="bottom right"
-          isDisabled={loadingState.sending || orders.length === 0}
-          onPress={() => setShowAlertDialog(true)}
-          className="bg-emerald-500 rounded-full active:scale-95 hover:scale-105 active:bg-emerald-600 p-4 transition-all duration-200"
-        >
-          {loadingState.sending ? (
-            <Spinner size="small" color="$white" />
-          ) : (
-            <>
-              <FabIcon as={Send} className="text-white" />
-
-            </>
-          )}
-        </Fab>
-      </Box>
+      {/* Floating Action Button */}
+      {renderFAB()}
     </SafeAreaView>
   );
 }

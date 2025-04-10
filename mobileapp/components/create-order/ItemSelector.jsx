@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { View, FlatList, TouchableOpacity, Keyboard } from 'react-native';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { ChevronDown, Search, X, ShoppingCart, CreditCard, ShoppingBasket } from 'lucide-react-native';
@@ -15,8 +15,10 @@ import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
+import { debounce } from 'lodash';
 
-const ItemCard = ({ item, onSelect }) => (
+// Memoize ItemCard to prevent unnecessary re-renders
+const ItemCard = memo(({ item, onSelect }) => (
   <TouchableOpacity
     onPress={onSelect}
     activeOpacity={0.7}
@@ -25,10 +27,10 @@ const ItemCard = ({ item, onSelect }) => (
     <View className="bg-white rounded-2xl border border-gray-200 shadow-lg p-4">
       <View className="flex-row items-center">
         <View className="bg-warning-50 p-3 rounded-xl mr-3">
-          <ShoppingCart size={20} className = "text-warning-500" />
+          <ShoppingCart size={20} className="text-warning-500" />
         </View>
         <View className="flex-1">
-          <Text className="text-lg font-semibold text-gray-900">
+          <Text className="text-lg font-semibold text-gray-900" numberOfLines={1} ellipsizeMode="tail">
             {item.item_name}
           </Text>
           <Text className="text-sm text-gray-600 mt-1">
@@ -42,21 +44,20 @@ const ItemCard = ({ item, onSelect }) => (
       <View className="flex-row justify-between mt-1">
         <View className="flex-row items-center flex-1">
           <ShoppingBasket size={16} color="#666666" />
-          <Text className="ml-2 text-sm text-gray-600">
-
+          <Text className="ml-2 text-sm text-gray-600" numberOfLines={1} ellipsizeMode="tail">
             Stock: {item.stock || 'No stock info'}
           </Text>
         </View>
         <View className="flex-row items-center flex-1">
           <CreditCard size={16} color="#666666" />
-          <Text className="ml-2 text-sm text-gray-600">
+          <Text className="ml-2 text-sm text-gray-600" numberOfLines={1} ellipsizeMode="tail">
             Price: ৳{item.std_price || 'Not available'}
           </Text>
         </View>
       </View>
     </View>
   </TouchableOpacity>
-);
+));
 
 export default function ItemSelector({
   zid,
@@ -67,80 +68,65 @@ export default function ItemSelector({
   onItemSelect,
   items,
   loading,
-  loadingMore,
   searchText,
   setSearchText,
-  onLoadMore,
-  hasMoreItems
+  onSearch
 }) {
-  const inputRef = useRef(null);
   const drawerInputRef = useRef(null);
-  const [isFocused, setIsFocused] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const loadingTimeoutRef = useRef(null);
-  const isTypingRef = useRef(false);
-  const scrollOffset = useRef(0);
-  const onEndReachedCalledDuringMomentum = useRef(false);
-  const isLoadingMoreRef = useRef(false);
+  const [localSearchText, setLocalSearchText] = useState('');
+  const initialSearchDoneRef = useRef(false);
+  
+  // Create debounced search function
+  const debouncedSearch = useCallback(
+    debounce((text) => {
+      setSearchText(text);
+      if (text.length >= 1) {
+        onSearch(text);
+      } else {
+        // Clear items when search is empty
+        setSearchText('');
+        onSearch('');
+      }
+    }, 400),
+    [setSearchText, onSearch]
+  );
 
   const handleSearchChange = useCallback((text) => {
-    setSearchText(text);
-    isTypingRef.current = true;
-  }, [setSearchText]);
+    setLocalSearchText(text);
+    debouncedSearch(text);
+  }, [debouncedSearch]);
 
-  const handleLoadMore = useCallback(() => {
-    if (onEndReachedCalledDuringMomentum.current) return;
-    
-    if (!loading && 
-        !loadingMore && 
-        hasMoreItems && 
-        searchText.length >= 1 && // Changed from 3 to 1
-        !isLoadingMoreRef.current && 
-        scrollOffset.current > 0) {
-      isLoadingMoreRef.current = true;
-      onLoadMore();
-      onEndReachedCalledDuringMomentum.current = true;
-    }
-  }, [loading, loadingMore, hasMoreItems, searchText, onLoadMore]);
-
-  const handleScroll = useCallback((event) => {
-    const currentOffset = event.nativeEvent.contentOffset.y;
-    scrollOffset.current = currentOffset;
-    
-    if (currentOffset <= 0) {
-      onEndReachedCalledDuringMomentum.current = false;
-      isLoadingMoreRef.current = false;
-    }
-
-    if (isFocused) {
-      Keyboard.dismiss();
-      setIsFocused(false);
-    }
-  }, [isFocused]);
-
+  // Clean up debounce on unmount
   useEffect(() => {
     return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
+      debouncedSearch.cancel?.();
     };
-  }, []);
+  }, [debouncedSearch]);
 
+  // Sync localSearchText with searchText when the drawer opens
   useEffect(() => {
-    if (loading) {
-      loadingTimeoutRef.current = setTimeout(() => {
-        setShowSearchResults(true);
-      }, 300);
+    if (showItemSheet) {
+      setLocalSearchText(searchText || '');
+      
+      // Only trigger search on initial open if searchText exists
+      if (searchText?.length >= 1 && !initialSearchDoneRef.current) {
+        initialSearchDoneRef.current = true;
+        // Use timeout to prevent immediate search that could cause update loop
+        setTimeout(() => {
+          onSearch(searchText);
+        }, 0);
+      }
     } else {
-      setShowSearchResults(false);
+      // Reset flag when drawer closes
+      initialSearchDoneRef.current = false;
     }
+  }, [showItemSheet, searchText, onSearch]);
 
-    return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-    };
-  }, [loading]);
+  const handleClearSearch = useCallback(() => {
+    setLocalSearchText('');
+    setSearchText('');
+    onSearch('');
+  }, [setSearchText, onSearch]);
 
   const renderItem = useCallback(({ item }) => (
     <ItemCard
@@ -152,6 +138,10 @@ export default function ItemSelector({
       }}
     />
   ), [onItemSelect, setShowItemSheet]);
+
+  const getItemKey = useCallback((item) => 
+    `item-${item.item_id}-${zid}`, 
+  [zid]);
 
   return (
     <VStack space="md">
@@ -183,33 +173,42 @@ export default function ItemSelector({
               <Text className="text-xs text-gray-600 uppercase mb-1">Select Item from</Text>
               <View className="flex-row justify-between items-center">
                 <Heading size="lg">Business</Heading>
-                <View className="bg-primary-100 px-2 py-1 rounded-lg">
-                  <Text className="text-purple-800 font-semibold">ZID {zid}</Text>
+                <View className="bg-orange-400 px-2 py-1 rounded-lg">
+                  <Text className="text-white font-semibold">ZID {zid}</Text>
                 </View>
               </View>
 
-              <Box className="mt-4">
-                <Input
-                  size="md"
-                  className="bg-white border border-gray-200 rounded-xl "
-                >
-                  <InputField
-                    ref={drawerInputRef}
-                    placeholder={`Search items in ZID ${zid}...`}
-                    value={searchText}
-                    onChangeText={handleSearchChange}
-                    className="text-sm"
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    autoCorrect={false}
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    returnKeyType="search"
-                  />
-                  <InputSlot px="$3">
-                    <InputIcon as={Search} size={18} className="text-gray-400" />
-                  </InputSlot>
-                </Input>
+              <Box className="mt-4 w-[280px]">
+                <View className="relative">
+                  <Input
+                    size="sm"
+                    className="bg-white border border-gray-200 rounded-xl w-full h-10"
+                  >
+                    <InputField
+                      ref={drawerInputRef}
+                      placeholder={`Search items in ZID ${zid}...`}
+                      value={localSearchText}
+                      onChangeText={handleSearchChange}
+                      className="text-sm"
+                      autoCorrect={false}
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      returnKeyType="search"
+                    />
+                    <InputSlot px="$3">
+                      {localSearchText ? (
+                        <TouchableOpacity 
+                          onPress={handleClearSearch}
+                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        >
+                          <InputIcon as={X} size={18} className="text-gray-400" />
+                        </TouchableOpacity>
+                      ) : (
+                        <InputIcon as={Search} size={18} className="text-gray-400" />
+                      )}
+                    </InputSlot>
+                  </Input>
+                </View>
               </Box>
             </View>
           </DrawerHeader>
@@ -218,11 +217,11 @@ export default function ItemSelector({
             <FlatList
               data={items}
               renderItem={renderItem}
-              keyExtractor={(item) => item.item_id}
+              keyExtractor={getItemKey}
               ListEmptyComponent={
                 <View className="py-5 items-center">
                   <Text className="text-gray-600 text-center">
-                    {searchText.length < 1 // Changed from 3 to 1
+                    {localSearchText.length < 1
                       ? "Type at least 1 character to search"
                       : loading
                       ? "Searching..."
@@ -230,25 +229,11 @@ export default function ItemSelector({
                   </Text>
                 </View>
               }
-              ListFooterComponent={
-                loadingMore ? (
-                  <View className="py-5 items-center">
-                    <Spinner size="small" color="$primary500" />
-                    <Text className="mt-2 text-gray-600">Loading more...</Text>
-                  </View>
-                ) : null
-              }
-              onEndReached={handleLoadMore}
-              onMomentumScrollBegin={() => {
-                onEndReachedCalledDuringMomentum.current = false;
-              }}
-              onEndReachedThreshold={0.5}
-              removeClippedSubviews={false}
+              removeClippedSubviews={true}
               initialNumToRender={10}
-              maxToRenderPerBatch={5}
+              maxToRenderPerBatch={10}
               updateCellsBatchingPeriod={50}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
+              windowSize={11}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               style={{ flex: 1 }}

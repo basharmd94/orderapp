@@ -45,30 +45,53 @@ const getExistingCustomers = async () => {
 const upsertCustomers = async (customers) => {
   const db = await getDatabase();
   if (!db) throw new Error('Database not initialized');
-  if (!db.transactionAsync) throw new Error('transactionAsync not available');
+  
   const statement = `
     INSERT OR REPLACE INTO customer 
     (zid, xcus, xorg, xadd1, xcity, xstate, xmobile, xtaxnum, xsp, xsp1, xsp2, xsp3) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  await db.transactionAsync(async (tx) => {
-    for (const customer of customers) {
-      await tx.runAsync(statement, [
-        customer.zid,
-        customer.xcus,
-        customer.xorg,
-        customer.xadd1,
-        customer.xcity,
-        customer.xstate,
-        customer.xmobile,
-        customer.xtaxnum,
-        customer.xsp,
-        customer.xsp1,
-        customer.xsp2,
-        customer.xsp3
-      ]);
-    }
-  });
+  
+  for (const customer of customers) {
+    await db.runAsync(statement, [
+      customer.zid,
+      customer.xcus,
+      customer.xorg,
+      customer.xadd1,
+      customer.xcity,
+      customer.xstate,
+      customer.xmobile,
+      customer.xtaxnum,
+      customer.xsp,
+      customer.xsp1,
+      customer.xsp2,
+      customer.xsp3
+    ]);
+  }
 };
 
-export { createTable, getExistingCustomers, upsertCustomers };
+const getCustomers = async (zid, searchText, userId, limit = 40, offset = 0) => {
+  const db = await getDatabase();
+  if (!db) throw new Error('Database not initialized');
+  
+  let query = 'SELECT * FROM customer WHERE zid = ?';
+  const params = [zid];
+  
+  if (searchText && searchText.length > 0) {
+    query += ' AND (xorg LIKE ? OR xcus LIKE ?)';
+    params.push(`%${searchText}%`, `%${searchText}%`);
+  }
+
+  // Add user-specific filter for salesperson
+  if (userId) {
+    query += ' AND (xsp = ? OR xsp1 = ? OR xsp2 = ? OR xsp3 = ?)';
+    params.push(userId, userId, userId, userId);
+  }
+  
+  query += ' ORDER BY xcus LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+  
+  return await db.getAllAsync(query, params);
+};
+
+export { createTable, getExistingCustomers, upsertCustomers, getCustomers };

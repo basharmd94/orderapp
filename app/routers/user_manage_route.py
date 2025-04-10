@@ -1,61 +1,76 @@
-from fastapi import APIRouter, HTTPException, status, Query, Depends, Request
-from schemas.customers_schema import CustomersSchema
-from schemas.user_schema import UserRegistrationSchema
-from typing import List, Union
-from typing_extensions import Annotated
-from utils.auth import get_current_normal_user, get_current_admin
-from utils.error import error_details
-from controllers.db_controllers.customers_db_controller import (
-    CustomersDBController,
-)
-from logs import setup_logger
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
+from controllers.db_controllers.user_manage_controller import UserManageController
+from controllers.db_controllers.user_db_controller import UserDBController
+from schemas.user_manage_schema import UserStatusUpdate
+from schemas.user_schema import UserOutSchema
+from utils.auth import get_current_admin
+from logs import setup_logger
+from typing import List
+from models.users_model import ApiUsers
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/user-manage",
+    tags=["User Management"],
+    dependencies=[Depends(get_current_admin)],  # All routes require admin access
+)
+
 logger = setup_logger()
 
-
-@router.get("/all/{zid}", response_model=List[CustomersSchema])
-async def get_all_customers(
-    request: Request,
-    zid: int,
-    customer: Annotated[
-        str,
-        Query(
-            min_length=3,
-            description="Put Customers ID, Customers Name or Area like CUS-001202 ",
-        ),
-    ],
-    employee_id : Annotated[ 
-        str,
-        Query(
-            min_length=3,
-            description="Put Employee ID, like SA--000015 ",
-        ),
-    ] ,
-    limit: int = 10,
-    offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+@router.delete("/{username}")
+async def delete_user(
+    username: str,
+    db: AsyncSession = Depends(get_db)
 ):
-    customers_db_controller = CustomersDBController(db)
+    """Delete a user and all their associated data"""
+    user_controller = UserManageController(db)
+    return await user_controller.delete_user(username)
 
+@router.post("/status")
+async def update_user_status(
+    user_status: UserStatusUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a user's status (active/inactive)"""
+    user_controller = UserManageController(db)
+    return await user_controller.update_user_status(
+        username=user_status.username,
+        new_status=user_status.status
+    )
+
+@router.get("/get-all-users", response_model=List[UserOutSchema])
+async def get_all_users(
+    current_admin: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all users from the system.
+    Only accessible by admin users.
+    """
     try:
-        customers = await customers_db_controller.get_all_customers(
-            zid, customer, employee_id, limit, offset, current_user
-        )
-        return customers
-
-    except ValueError as e:
-        logger.error(f"Error getting Customer route: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException as e:
-        # Re-raise HTTP exceptions to preserve status code
-        raise e
+        user_db = UserDBController(db)
+        users = await user_db.get_all_users()
+        # Convert ApiUsers to UserOutSchema format
+        user_list = []
+        for user in users:
+            user_dict = {
+                "username": user.username,
+                "email": user.email,
+                "mobile": user.mobile,
+                "status": user.status,
+                "businessId": user.businessId,
+                "terminal": user.terminal,
+                "accode": user.accode,
+                "is_admin": user.is_admin,
+                "employee_name": user.employee_name,
+                "user_id": user.employeeCode  # Map employeeCode to user_id
+            }
+            user_list.append(user_dict)
+        return user_list
     except Exception as e:
-        logger.error(f"Unexpected error in get_all_customers: {e}")
+        logger.error(f"Error retrieving users: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while retrieving customers"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving users: {str(e)}"
         )

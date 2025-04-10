@@ -4,6 +4,7 @@ import { House, Package, User, ShoppingBag, CirclePlus, Send, ChevronLeft } from
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
+import { useCallback } from 'react';
 
 const TabBarIcon = ({ focused, color, icon: Icon }) => {
   return (
@@ -18,6 +19,12 @@ const TabBarIcon = ({ focused, color, icon: Icon }) => {
 };
 
 export default function TabLayout() {
+  // Pre-render tab headers to avoid re-renders during navigation
+  const renderHomeTabIcon = useCallback((props) => <TabBarIcon {...props} icon={House} />, []);
+  const renderCreateTabIcon = useCallback((props) => <TabBarIcon {...props} icon={CirclePlus} />, []);
+  const renderSendTabIcon = useCallback((props) => <TabBarIcon {...props} icon={Send} />, []);
+  const renderProfileTabIcon = useCallback((props) => <TabBarIcon {...props} icon={User} />, []);
+  
   return (
     <Tabs
       screenOptions={{
@@ -38,18 +45,19 @@ export default function TabLayout() {
           fontSize: 10,
           fontWeight: '500',
         },
-        // Fixing tab navigation performance
-        unmountOnBlur: false, // Keep screens mounted when switching tabs
-        lazy: true, // Still lazy load screens, but don't unmount them
+        // Optimized tab navigation performance
+        unmountOnBlur: false,
+        lazy: true,
+        freezeOnBlur: false, // Prevents freezing UI when tab is not focused
+        detachInactiveScreens: false, // Keep inactive screens attached for faster switching
+        detachPreviousScreen: false,
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: (props) => (
-            <TabBarIcon {...props} icon={House} />
-          ),
+          tabBarIcon: renderHomeTabIcon,
         }}
       />
       <Tabs.Screen
@@ -59,15 +67,13 @@ export default function TabLayout() {
           headerShown: false,
           headerTitle: 'Create',  
           headerStyle: {
-            backgroundColor: "#DE7123", // Change to your desired color    
+            backgroundColor: "#DE7123",    
           },
-          headerShadowVisible: false, // React Navigation 6+
+          headerShadowVisible: false,
           headerTitleStyle: {
             fontSize: 16,
             fontWeight: '600',
-
           },
-          
           headerLeft: () => (
             <Box className="ml-4">
               <Pressable onPress={() => router.back()}>
@@ -75,11 +81,7 @@ export default function TabLayout() {
               </Pressable>
             </Box>
           ),
-          tabBarIcon: (props) => (
-            <TabBarIcon {...props} icon={CirclePlus} />
-          ),
-
-      
+          tabBarIcon: renderCreateTabIcon,
         }}
       />
       <Tabs.Screen
@@ -88,15 +90,14 @@ export default function TabLayout() {
           title: 'Send',
           headerShown: false,
           headerTitle: 'Send Orders',
-          
           headerTitleStyle: {
             fontSize: 16,
             fontWeight: '600',
           },
           headerStyle: {
-            backgroundColor: "#DE7123", // Change to your desired color    
+            backgroundColor: "#DE7123",
           },
-          headerShadowVisible: false, // React Navigation 6+
+          headerShadowVisible: false,
           headerLeft: () => (
             <Box className="ml-4">
               <Pressable onPress={() => router.back()}>
@@ -104,30 +105,16 @@ export default function TabLayout() {
               </Pressable>
             </Box>
           ),
-          tabBarIcon: (props) => (
-            <TabBarIcon {...props} icon={Send} />
-          ),
-        }}
-      />
-            <Tabs.Screen
-        name="latest-orders"
-        options={{
-          title: 'LatestOrders',
-          tabBarIcon: (props) => (
-            <TabBarIcon {...props} icon={User} />
-          ),
+          tabBarIcon: renderSendTabIcon,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: (props) => (
-            <TabBarIcon {...props} icon={User} />
-          ),
+          tabBarIcon: renderProfileTabIcon,
         }}
       />
-
     </Tabs>
   );
 }
