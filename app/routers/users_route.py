@@ -202,7 +202,7 @@ async def get_current_user_info(
                 detail="User not found"
             )
             
-        return UserOutSchema(
+        return UserOutSchema( 
             user_id=user.employeeCode,
             username=user.username,
             email=user.email,

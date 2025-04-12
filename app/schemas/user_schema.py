@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from typing import List
 from passlib.context import CryptContext
 from typing import Union
@@ -6,7 +6,7 @@ from typing import Union
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 class UserBase(BaseModel):
-    username: str  # Changed from user_name to username to match database model
+    username: str = Field(alias="user_name")  # Changed from user_name to username to match database model
     email: Union[str, None] = None
     mobile: Union[str, None] = None
     status: Union[str, None] = "active"
