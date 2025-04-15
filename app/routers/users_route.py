@@ -190,6 +190,7 @@ async def get_current_user_info(
     current_user: UserRegistrationSchema = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    print ("hello world")
     """Get current logged in user information"""
     try:
         # Query to get full user details from database
