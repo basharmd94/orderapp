@@ -102,7 +102,7 @@ def has_permission(required_permissions: Union[str, List[str]]):
             current_user = None
             sig = inspect.signature(func)
             for param_name, param in sig.parameters.items():
-                if param_name in kwargs and hasattr(kwargs[param_name], "user_name"):
+                if param_name in kwargs and hasattr(kwargs[param_name], "username"):
                     current_user = kwargs[param_name]
                     break
             
@@ -123,7 +123,7 @@ def has_permission(required_permissions: Union[str, List[str]]):
                 # Get db from dependency if not found in kwargs
                 db = await get_db().__anext__()
                 
-            username = current_user.user_name
+            username = current_user.username
             has_perm = await check_user_permissions(db, username, required_permissions)
             
             if not has_perm:
@@ -165,7 +165,7 @@ def has_role(required_roles: Union[str, List[str]]):
             current_user = None
             sig = inspect.signature(func)
             for param_name, param in sig.parameters.items():
-                if param_name in kwargs and hasattr(kwargs[param_name], "user_name"):
+                if param_name in kwargs and hasattr(kwargs[param_name], "username"):
                     current_user = kwargs[param_name]
                     break
             
@@ -191,7 +191,7 @@ def has_role(required_roles: Union[str, List[str]]):
                 return await func(*args, **kwargs)
                 
             # Get user with roles from database
-            username = current_user.user_name
+            username = current_user.username
             user_query = await db.execute(
                 select(ApiUsers).filter(ApiUsers.username == username)
             )

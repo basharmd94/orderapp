@@ -3,7 +3,7 @@ registration_example = {
         "examples": [
             {
                 "user_id": "IT--000084",
-                "username": "basharmd95",  # Changed from user_name
+                "username": "basharmd95",  # Changed from username
                 "mobile": "01675373799",
                 "email": "mat197195@gmail.com",
                 "status": "active",
