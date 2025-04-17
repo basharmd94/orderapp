@@ -2,11 +2,12 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, text
 from models.orders_model import Opmob
 from schemas.orders_schema import OpmobSchema
 from schemas.user_schema import UserRegistrationSchema
 from utils.orders_utils import format_invoice_number, generate_random_number
+from schemas.order_summary_schema import OrderSummaryResponse, OrderSummaryListResponse
 
 class OrderDBController:
     """Controller for handling order-related database operations."""
@@ -108,3 +109,93 @@ class OrderDBController:
             all_created_items.extend(created_items)
             
         return all_created_items
+    
+    async def get_orders_by_status(
+        self, 
+        status: str,
+        username: str,
+        zid: int = None,
+        limit: int = 10
+    ) -> OrderSummaryListResponse:
+        """Get orders with a specific status for the current user."""
+        try:
+            # Build the SQL query with string aggregation
+            query = text("""
+                SELECT 
+                    zid,
+                    invoiceno, 
+                    xcus, 
+                    xcusname, 
+                    STRING_AGG(xitem || ' - ' || xdesc, ', ') AS items,
+                    SUM(xqty) AS total_qty, 
+                    SUM(xprice) AS total_price, 
+                    SUM(xlinetotal) AS total_linetotal,
+                    xstatusord
+                FROM 
+                    opmob
+                WHERE 
+                    username = :username 
+                    AND xstatusord = :status
+                    """ + (f" AND zid = :zid" if zid else "") + """
+                GROUP BY 
+                    zid,
+                    invoiceno, 
+                    xcus, 
+                    xcusname, 
+                    xstatusord
+                ORDER BY 
+                    invoiceno
+                LIMIT :limit
+            """)
+            
+            # Prepare parameters
+            params = {
+                "username": username,
+                "status": status,
+                "limit": limit
+            }
+            
+            if zid:
+                params["zid"] = zid
+                
+            # Execute the query
+            result = await self.db.execute(query, params)
+            orders = result.fetchall()
+            
+            # Convert to OrderSummaryResponse objects
+            order_summaries = [
+                OrderSummaryResponse(
+                    zid=order.zid,
+                    invoiceno=order.invoiceno,
+                    xcus=order.xcus,
+                    xcusname=order.xcusname,
+                    items=order.items,
+                    total_qty=order.total_qty,
+                    total_price=float(order.total_price),
+                    total_linetotal=float(order.total_linetotal),
+                    xstatusord=order.xstatusord
+                )
+                for order in orders
+            ]
+            
+            return OrderSummaryListResponse(
+                orders=order_summaries,
+                count=len(order_summaries),
+                status=status
+            )
+            
+        except Exception as e:
+            # Re-raise the exception with additional context
+            raise Exception(f"Error fetching {status} orders: {str(e)}")
+            
+    async def get_pending_orders(self, username: str, zid: int = None, limit: int = 10) -> OrderSummaryListResponse:
+        """Get pending (new) orders for the current user."""
+        return await self.get_orders_by_status("New", username, zid, limit)
+        
+    async def get_confirmed_orders(self, username: str, zid: int = None, limit: int = 10) -> OrderSummaryListResponse:
+        """Get confirmed orders for the current user."""
+        return await self.get_orders_by_status("Order Created", username, zid, limit)
+        
+    async def get_cancelled_orders(self, username: str, zid: int = None, limit: int = 10) -> OrderSummaryListResponse:
+        """Get cancelled orders for the current user."""
+        return await self.get_orders_by_status("Not enough stock to create Order", username, zid, limit)

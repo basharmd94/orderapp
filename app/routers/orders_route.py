@@ -1,12 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, async_session_maker
-from fastapi import APIRouter, status, Depends, HTTPException, Request, Path
+from fastapi import APIRouter, status, Depends, HTTPException, Request, Path, Query
 from fastapi.responses import JSONResponse
-from typing import List
+from typing import List, Optional
 import asyncio
 from asyncio import Queue
 
 from schemas.orders_schema import OpmobSchema, BulkOpmobSchema, OpmobResponse
+from schemas.order_summary_schema import OrderSummaryListResponse
 from schemas.user_schema import UserRegistrationSchema
 from logs import setup_logger
 from utils.auth import get_current_normal_user
@@ -245,6 +246,96 @@ async def create_bulk_order(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"message": f"Error creating bulk orders: {str(e)}", "type": "server_error"}
+        )
+
+@router.get(
+    "/get-pending-orders",
+    status_code=status.HTTP_200_OK,
+    response_model=OrderSummaryListResponse,
+    summary="Get pending orders",
+    description="Retrieve the last 10 pending (new) orders for the current user"
+)
+async def get_pending_orders(
+    request: Request,
+    zid: Optional[int] = Query(None, description="Optional business ID filter"),
+    limit: int = Query(10, description="Maximum number of orders to return", ge=1, le=100),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the last 10 pending (new) orders for the current user."""
+    try:
+        order_controller = OrderDBController(db)
+        result = await order_controller.get_pending_orders(
+            username=current_user.username,
+            zid=zid,
+            limit=limit
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error retrieving pending orders: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving pending orders: {str(e)}"
+        )
+
+@router.get(
+    "/get-confirmed-orders",
+    status_code=status.HTTP_200_OK,
+    response_model=OrderSummaryListResponse,
+    summary="Get confirmed orders",
+    description="Retrieve the last 10 confirmed orders for the current user"
+)
+async def get_confirmed_orders(
+    request: Request,
+    zid: Optional[int] = Query(None, description="Optional business ID filter"),
+    limit: int = Query(10, description="Maximum number of orders to return", ge=1, le=100),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the last 10 confirmed orders for the current user."""
+    try:
+        order_controller = OrderDBController(db)
+        result = await order_controller.get_confirmed_orders(
+            username=current_user.username,
+            zid=zid,
+            limit=limit
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error retrieving confirmed orders: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving confirmed orders: {str(e)}"
+        )
+
+@router.get(
+    "/get-cancelled-orders",
+    status_code=status.HTTP_200_OK,
+    response_model=OrderSummaryListResponse,
+    summary="Get cancelled orders",
+    description="Retrieve the last 10 cancelled orders for the current user"
+)
+async def get_cancelled_orders(
+    request: Request,
+    zid: Optional[int] = Query(None, description="Optional business ID filter"),
+    limit: int = Query(10, description="Maximum number of orders to return", ge=1, le=100),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the last 10 cancelled orders for the current user."""
+    try:
+        order_controller = OrderDBController(db)
+        result = await order_controller.get_cancelled_orders(
+            username=current_user.username,
+            zid=zid,
+            limit=limit
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error retrieving cancelled orders: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving cancelled orders: {str(e)}"
         )
 
 @router.get(
