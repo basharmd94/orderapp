@@ -95,11 +95,13 @@ orderapp/
   - Fields: zid, xitem, xqty, xsign
 - **Opspprc**: Special pricing information
   - Fields: zid, xpricecat, xqty, xdisc
-- **FinalItemsView**: View combining inventory data
+- **FinalItemsView**: Materialized view combining inventory data for improved performance
   - Fields: zid, item_id, item_name, item_group, std_price, stock, min_disc_qty, disc_amt
   - SQL Definition:
     ```sql
-    CREATE OR REPLACE VIEW final_items_view AS
+    DROP VIEW IF EXISTS final_items_view;
+
+    CREATE MATERIALIZED VIEW final_items_view AS
     SELECT
         ci.zid,
         ci.xitem AS item_id,
@@ -157,6 +159,11 @@ orderapp/
         ci.zid,
         ci.xitem;
     ```
+  - Refresh Command:
+    ```sql
+    REFRESH MATERIALIZED VIEW final_items_view;
+    ```
+  - Daily scheduled refresh via script `H_77_sync_items`
 
 ### Customer Tables
 - **Cacus**: Customer information
