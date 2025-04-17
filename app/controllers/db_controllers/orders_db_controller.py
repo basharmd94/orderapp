@@ -40,6 +40,7 @@ class OrderDBController:
             xdesc=item_data.xdesc,
             xqty=item_data.xqty,
             xprice=item_data.xprice,
+            xstatusord = "New",
             xroword=item_data.xroword,
             xterminal=current_user.terminal,
             xdate=current_time,

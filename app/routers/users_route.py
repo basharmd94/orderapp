@@ -205,7 +205,7 @@ async def get_current_user_info(
             
         return UserOutSchema( 
             user_id=user.employeeCode,
-            user_name=user.username,
+            username=user.username,
             email=user.email,
             mobile=user.mobile,
             status=user.status,
