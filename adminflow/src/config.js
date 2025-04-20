@@ -1,5 +1,5 @@
 export const DASHBOARD_PATH = '/dashboard/default';
-export const API_BASE_URL = 'http://127.0.0.1:8000/api/v1'; // Removed admin prefix
+export const API_BASE_URL = 'http://69.162.102.58:8500/api/v1'; // Removed admin prefix
 
 const config = {
   fontFamily: `'Roboto', sans-serif`,

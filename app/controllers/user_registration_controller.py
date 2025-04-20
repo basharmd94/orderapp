@@ -114,13 +114,13 @@ class UserRegistrationController:
             error_message="User Name already registered in registration table",
         )
 
-    async def check_employeeCode_exist_in_apiusers(self, employee_code: str):
-        await self.check_exists(
-            model=ApiUsers,
-            attribute='employeeCode',
-            value=employee_code,
-            error_message="Employee code already registered in registration table",
-        )
+    # async def check_employeeCode_exist_in_apiusers(self, employee_code: str):
+    #     await self.check_exists(
+    #         model=ApiUsers,
+    #         attribute='employeeCode',
+    #         value=employee_code,
+    #         error_message="Employee code already registered in registration table",
+    #     )
 
     async def check_email_exists(self, email: str):
         await self.check_exists(
@@ -147,7 +147,7 @@ class UserRegistrationController:
             await self.check_user_id_in_prmst(users.user_id)
             await self.check_username_exists(users.username)
             await self.check_email_exists(users.email)
-            await self.check_employeeCode_exist_in_apiusers(users.user_id)
+            # await self.check_employeeCode_exist_in_apiusers(users.user_id)
 
             await self.validate_password(users.password)
             hashed_password = await self.get_password_hash(users.password)
