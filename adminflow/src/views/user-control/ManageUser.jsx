@@ -144,11 +144,10 @@ const ManageUser = () => {
       
       // Convert businessId to number
       if (updateData.businessId) {
-        updateData.businessId = Number(updateData.businessId);
-      }
+        updateData.businessId = Number(updateData.businessId);      }
 
       // Make the API call
-      const response = await apiPut('/admin/user-manage/update-user', updateData);
+      const response = await apiPut('/user-manage/update-user', updateData);
       
       setAlert({
         show: true,
