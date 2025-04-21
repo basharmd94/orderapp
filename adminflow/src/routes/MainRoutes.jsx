@@ -19,6 +19,7 @@ const SamplePage = Loadable(lazy(() => import('views/sample-page')));
 // users page routing
 const UserRegister = Loadable(lazy(() => import('views/user-control/UserRegister')));
 const ManageUser = Loadable(lazy(() => import('views/user-control/ManageUser')));
+const UserUpdate = Loadable(lazy(() => import('views/user-control/UserUpdate')));
 const AreaDistribution = Loadable(lazy(() => import('views/user-control/AreaDistribution')));
 
 // ==============================|| MAIN ROUTING ||============================== //
@@ -46,8 +47,7 @@ const MainRoutes = {
     {
       path: 'shadow',
       element: <UtilsShadow />
-    },
-    {
+    },    {
       path: 'sample-page',
       element: <SamplePage />
     },
@@ -55,6 +55,10 @@ const MainRoutes = {
     {
       path: 'user-control/register',
       element: <AdminProvider><UserRegister /></AdminProvider>
+    },
+    {
+      path: 'user-control/update',
+      element: <AdminProvider><UserUpdate /></AdminProvider>
     },
     {
       path: 'user-control/manage',

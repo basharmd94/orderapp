@@ -1,4 +1,5 @@
 import { RouterProvider } from 'react-router-dom';
+import { SnackbarProvider } from 'notistack';
 
 // routing
 import router from 'routes';
@@ -15,13 +16,15 @@ import { AuthProvider } from 'contexts/AuthContext';
 export default function App() {
   return (
     <ThemeCustomization>
-      <AuthProvider>
-        <NavigationScroll>
-          <>
-            <RouterProvider router={router} />
-          </>
-        </NavigationScroll>
-      </AuthProvider>
+      <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <AuthProvider>
+          <NavigationScroll>
+            <>
+              <RouterProvider router={router} />
+            </>
+          </NavigationScroll>
+        </AuthProvider>
+      </SnackbarProvider>
     </ThemeCustomization>
   );
 }

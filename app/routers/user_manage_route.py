@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from controllers.db_controllers.user_manage_controller import UserManageController
 from controllers.db_controllers.user_db_controller import UserDBController
-from schemas.user_manage_schema import UserStatusUpdate
+from schemas.user_manage_schema import UserStatusUpdate, UserUpdate
 from schemas.user_schema import UserOutSchema
 from utils.auth import get_current_admin
 from logs import setup_logger
@@ -73,4 +73,26 @@ async def get_all_users(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving users: {str(e)}"
+        )
+
+@router.put("/update-user")
+async def update_user(
+    user_data: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    Update user information
+    Requires admin privileges
+    """
+    try:
+        user_controller = UserManageController(db)
+        return await user_controller.update_user(user_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in update_user endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while updating user"
         )

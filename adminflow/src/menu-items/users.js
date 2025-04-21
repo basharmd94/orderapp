@@ -1,11 +1,12 @@
-import { IconUsers, IconUserPlus, IconUserCheck, IconMap2 } from '@tabler/icons-react';
+import { IconUsers, IconUserPlus, IconUserCheck, IconMap2, IconUserEdit } from '@tabler/icons-react';
 import { useAuth } from 'contexts/AuthContext'; // Import useAuth
 
 const icons = { 
   IconUsers, 
   IconUserPlus, 
   IconUserCheck, 
-  IconMap2 
+  IconMap2,
+  IconUserEdit
 };
 
 // Create the menu configuration
@@ -33,8 +34,7 @@ const getUsersMenu = () => {
               title: 'User Registration',
               type: 'item',
               url: '/user-control/register',
-              icon: icons.IconUserPlus,
-              breadcrumbs: false
+              icon: icons.IconUserPlus,              breadcrumbs: false
             },
             {
               id: 'manage-users',

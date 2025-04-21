@@ -76,8 +76,18 @@ export const apiGet = async (url, config = {}) => {
 
 export const apiPost = async (url, data = {}, config = {}) => {
   try {
-    return await api.post(url, data, config);
+    console.log(`Making POST request to: ${API_BASE_URL}${url}`);
+    console.log('Request data:', data);
+    const response = await api.post(url, data, config);
+    console.log('Response received:', response);
+    return response;
   } catch (error) {
+    console.error('API error:', error);
+    console.error('Request was made to:', `${API_BASE_URL}${url}`);
+    console.error('Request data was:', data);
+    if (error.response) {
+      console.error('Error response:', error.response.status, error.response.data);
+    }
     throw error;
   }
 };

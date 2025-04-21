@@ -1,15 +1,14 @@
-import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { apiPut } from './api';
 
-export const registerUser = async (userData) => {
+export const updateUser = async (userData) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/users/registration`, userData);
+    const response = await apiPut('/admin/user-manage/update-user', userData);
     return {
       success: true,
-      data: response.data
+      data: response
     };
   } catch (error) {
-    let errorMessage = 'Registration failed';
+    let errorMessage = 'User update failed';
     if (error.response) {
       // Handle specific API error responses
       if (error.response.data.detail) {
