@@ -9,27 +9,24 @@ const icons = { IconBrandChrome, IconHelp };
 const other = {
   id: 'sample-docs-roadmap',
   type: 'group',
-  // MENU CONFIGURATION:
-  // These menu items are temporarily hidden but code is preserved
-  // To restore hidden items, simply uncomment them in the array below
   children: [
-    // {
-    //   id: 'sample-page',
-    //   title: 'Sample Page',
-    //   type: 'item',
-    //   url: '/sample-page',
-    //   icon: icons.IconBrandChrome,
-    //   breadcrumbs: false
-    // },
-    // {
-    //   id: 'documentation',
-    //   title: 'Documentation',
-    //   type: 'item',
-    //   url: 'https://codedthemes.gitbook.io/berry/',
-    //   icon: icons.IconHelp,
-    //   external: true,
-    //   target: true
-    // }
+    {
+      id: 'sample-page',
+      title: 'Sample Page',
+      type: 'item',
+      url: '/sample-page',
+      icon: icons.IconBrandChrome,
+      breadcrumbs: false
+    },
+    {
+      id: 'documentation',
+      title: 'Documentation',
+      type: 'item',
+      url: 'https://codedthemes.gitbook.io/berry/',
+      icon: icons.IconHelp,
+      external: true,
+      target: true
+    }
   ]
 };
 

@@ -21,10 +21,10 @@ async def get_all_items_sync(
     item_name: Annotated[Union[str, None], Query(description="Optional: Put Items ID or Items Name to filter results")] = None,
     limit: int = 100,
     offset: int = 0,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),    
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
-    logger.info(f"get all items sync endpoint called: {request.url.path}")
+    logger.info(f"get all items sync endpoint called: {request.url.path} by user: {current_user.username} (ID: {current_user.id})")
     items_db_controller = ItemsDBController(db)
     
     items = await items_db_controller.get_all_items_sync(

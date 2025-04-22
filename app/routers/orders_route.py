@@ -175,11 +175,11 @@ async def create_bulk_order(
     orders_data: BulkOpmobSchema,
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
     db: AsyncSession = Depends(get_db)
-):
+):    
     """
-    Create multiple orders concurrently using an asyncio Queue to manage concurrency.
+        Create multiple orders concurrently using an asyncio Queue to manage concurrency.
     """
-    logger.info(f"Create bulk order endpoint called by: {request.url.path} with {len(orders_data.orders)} orders")
+    logger.info(f"Create bulk order endpoint called: {request.url.path} by user: {current_user.username} (ID: {current_user.id}) with {len(orders_data.orders)} orders")
     
     if not orders_data.orders:
         logger.warning("No orders provided in request")
@@ -199,10 +199,10 @@ async def create_bulk_order(
                 orders_data.orders[0], 
                 current_user
             )
-            logger.info(f"Single order processed, created {len(db_items)} items")
+            # logger.info(f"Single order processed, created {len(db_items)} items")
             # Convert DB models to Pydantic response models
             response_items = [convert_to_opmob_response(item) for item in db_items]
-            logger.info(f"Returning {len(response_items)} response items")
+            # logger.info(f"Returning {len(response_items)} response items")
             return response_items
         
         # Create a queue and populate it with orders
@@ -215,7 +215,7 @@ async def create_bulk_order(
         for _ in range(worker_count):
             await order_queue.put(None)
         
-        logger.info(f"Starting {worker_count} worker tasks")
+        # logger.info(f"Starting {worker_count} worker tasks")
         
         # Process orders concurrently
         tasks = []
@@ -225,7 +225,7 @@ async def create_bulk_order(
         
         # Wait for all tasks to complete
         all_results = await asyncio.gather(*tasks)
-        logger.info(f"All tasks completed, merging results from {len(all_results)} workers")
+        # logger.info(f"All tasks completed, merging results from {len(all_results)} workers")
         
         # Merge results from all workers
         final_results = []

@@ -35,14 +35,15 @@ async def user_registration(
     user_data: UserRegistrationSchema,
     request: Request,
     db: AsyncSession = Depends(get_db)
-):
+):    
     try:
         user_registration_controller = UserRegistrationController(db)
         result = await user_registration_controller.register_user(user_data)
         logger.info(f"User {user_data.username} registered successfully from {request.client.host}")
         return result
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}\n{traceback.format_exc()}")
+        # Only log the error message without traceback
+        logger.error(f"Registration error: {str(e)}")
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
@@ -55,13 +56,14 @@ async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
-):
+):    
     try:
         user_login_controller = UserLoginController(db)
         result = await user_login_controller.user_login(form_data, request)
         return result
     except Exception as e:
-        logger.error(f"Login error: {str(e)}\n{traceback.format_exc()}")
+        # Only log the error message without traceback
+        logger.error(f"Login error: {str(e)}")
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
