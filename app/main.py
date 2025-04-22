@@ -18,8 +18,10 @@ from routers import (
     customers_route,
     orders_route,
     rbac_route,
-    user_manage_route,  # Add this import
+    user_manage_route,
+    customer_balance_route,  # Add customer balance route
 )
+
 from database import engine, Base, get_db
 from logs import setup_logger
 from utils.auth import session_activity_middleware
@@ -168,6 +170,14 @@ app = FastAPI(
     },
 )
 
+# Import test routes only in debug mode
+try:
+    from routers import test_route, test_post_route
+    has_test_routes = True
+except ImportError:
+    has_test_routes = False
+    logger.warning("Test routes not available")
+
 # CORS Configuration
 CORS_ORIGINS = [
     "http://localhost",
@@ -304,6 +314,12 @@ router_configs = [
         "tags": ["RBAC"],
         "responses": {403: {"description": "Insufficient permissions"}},
     },
+    {
+        "router": customer_balance_route.router,
+        "prefix": f"{API_PREFIX}/customer-balance",
+        "tags": ["Customer Balance"],
+        "responses": {404: {"description": "Customer balance data not found"}},
+    },
 ]
 
 # Include all routers
@@ -313,7 +329,7 @@ for config in router_configs:
 app.include_router(user_manage_route.router, prefix="/api/v1/admin", tags=["User Management"])  # Add this line
 
 # Development routes (should be disabled in production)
-if app.debug:
+if app.debug and has_test_routes:
     app.include_router(
         test_route.router,
         prefix=f"{API_PREFIX}/test",
