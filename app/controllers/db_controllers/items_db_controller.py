@@ -164,3 +164,81 @@ class ItemsDBController:
             for item in result.fetchall()
         ]
         return items
+        
+    async def get_single_item(self, zid: int, item_id: str) -> Union[ItemsSchema, None]:
+        """
+        Retrieve a single item based on zid and item_id.
+        
+        Args:
+            zid: The business ID
+            item_id: The item ID to retrieve
+            
+        Returns:
+            A single ItemsSchema instance or None if not found
+        """
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        # Define the CTE for transaction summary
+        transaction_summary_query = (
+            select(Imtrn.xitem, func.sum(Imtrn.xqty * Imtrn.xsign).label("stock"))
+            .filter(Imtrn.zid == zid)
+            .group_by(Imtrn.xitem)
+        )
+
+        transaction_summary = transaction_summary_query.cte("transaction_summary")
+        
+        # Build query to get a single item
+        query = (
+            select(
+                Caitem.zid.label("zid"),
+                Caitem.xitem.label("item_id"),
+                Caitem.xdesc.label("item_name"),
+                Caitem.xgitem.label("item_group"),
+                Caitem.xstdprice.label("std_price"),
+                Caitem.xunitstk.label("stock_unit"),
+                transaction_summary.c.stock,
+                func.coalesce(func.min(Opspprc.xqty), 0).label("min_disc_qty"),
+                func.coalesce(func.min(Opspprc.xdisc), 0).label("disc_amt"),
+            )
+            .join(transaction_summary, Caitem.xitem == transaction_summary.c.xitem)
+            .outerjoin(
+                Opspprc, and_(Caitem.xitem == Opspprc.xpricecat, Opspprc.zid == zid)
+            )
+            .filter(
+                Caitem.zid == zid,
+                Caitem.xitem == item_id,  # Filter by specific item_id
+                # transaction_summary.c.stock > 0, # also show which has 0 stock
+            )
+            .group_by(
+                Caitem.zid,
+                Caitem.xitem,
+                Caitem.xdesc,
+                Caitem.xgitem,
+                Caitem.xstdprice,
+                Caitem.xunitstk,
+                transaction_summary.c.stock,
+            )
+        )
+
+        # Execute the query asynchronously
+        result = await self.db.execute(query)
+        
+        # Fetch the first (and should be only) result
+        item = result.fetchone()
+        
+        # Return None if no item is found
+        if not item:
+            return None
+            
+        # Convert the query result to an ItemsSchema instance
+        return ItemsSchema(
+            zid=item.zid,
+            item_id=item.item_id,
+            item_name=item.item_name,
+            item_group=item.item_group,
+            std_price=item.std_price,
+            stock=item.stock,
+            min_disc_qty=item.min_disc_qty,
+            disc_amt=item.disc_amt,
+        )

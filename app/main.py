@@ -20,6 +20,7 @@ from routers import (
     rbac_route,
     user_manage_route,
     customer_balance_route,  # Add customer balance route
+    location_route,  # Add location route
 )
 
 from database import engine, Base, get_db
@@ -108,6 +109,10 @@ tags_metadata = [
     {
         "name": "Customers",
         "description": "Customer relationship management operations.",
+    },
+    {
+        "name": "Location",
+        "description": "User location tracking and geolocation management.",
     },
 ]
 
@@ -319,6 +324,12 @@ router_configs = [
         "prefix": f"{API_PREFIX}/customer-balance",
         "tags": ["Customer Balance"],
         "responses": {404: {"description": "Customer balance data not found"}},
+    },
+    {
+        "router": location_route.router,
+        "prefix": f"{API_PREFIX}/location",
+        "tags": ["Location"],
+        "responses": {404: {"description": "Location data not found"}},
     },
 ]
 

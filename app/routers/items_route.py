@@ -63,4 +63,27 @@ async def get_all_items(
         )
     return items
 
+@router.get(
+    "/single-item/{zid}/{item_id}", response_model=ItemsSchema,
+    summary="Get a single item by ID",
+    description="Retrieves a single item by its ZID and Item ID"
+)
+async def get_single_item(
+    request: Request,
+    zid: int,
+    item_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+):
+    logger.info(f"get single item endpoint called: {request.url.path} by user: {current_user.username} (ID: {current_user.id})")
+    items_db_controller = ItemsDBController(db)
+    
+    item = await items_db_controller.get_single_item(zid=zid, item_id=item_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_details(f"Item with ID {item_id} not found"),
+        )
+    return item
+
 

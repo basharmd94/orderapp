@@ -165,6 +165,42 @@ orderapp/
     ```
   - Daily scheduled refresh via script `H_77_sync_items`
 
+
+### Location Tracking Table
+
+To create the location_records table for location tracking, run the following SQL:
+
+```sql
+CREATE TABLE location_records (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
+    altitude FLOAT,
+    accuracy FLOAT,
+    name VARCHAR(255),
+    street VARCHAR(255),
+    district VARCHAR(255),
+    city VARCHAR(255),
+    region VARCHAR(255),
+    postal_code VARCHAR(50),
+    country VARCHAR(100),
+    formatted_address TEXT,
+    maps_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    timestamp TIMESTAMP NOT NULL,
+    business_id INTEGER,
+    notes TEXT,
+    device_info VARCHAR(255),
+    is_check_in BOOLEAN DEFAULT FALSE,
+    shared_via VARCHAR(100)
+);
+
+-- Add indexes for efficient querying
+CREATE INDEX idx_location_username ON location_records(username);
+CREATE INDEX idx_location_timestamp ON location_records(timestamp);
+CREATE INDEX idx_location_business_id ON location_records(business_id);
+
 ### Customer Tables
 - **Cacus**: Customer information
   - Fields: zid, xcus, xorg, xadd1, xcity, xstate, xmobile, xtaxnum, xsp, xsp1, xsp2, xsp3
