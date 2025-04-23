@@ -31,13 +31,12 @@ class LocationRecord(Base):
     
     # Formatted address (combined address string)
     formatted_address = Column(Text, nullable=True)
-    
-    # Maps URL
+      # Maps URL
     maps_url = Column(String, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime, server_default=func.now())
-    timestamp = Column(DateTime, nullable=False)  # Actual timestamp from device
+    timestamp = Column(DateTime(timezone=True), nullable=False)  # Actual timestamp from device
     
     # Optional metadata
     business_id = Column(Integer, nullable=True)
