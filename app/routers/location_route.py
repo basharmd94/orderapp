@@ -2,15 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, async_session_maker
 from controllers.db_controllers.location_db_controller import LocationDBController
-from location import LocationCreate, Location, LocationQuery
+from schemas.location_schema import LocationCreate, Location, LocationQuery
 from schemas.user_schema import UserRegistrationSchema
 from utils.auth import get_current_normal_user
 from utils.error import error_details
 from logs import setup_logger
 from typing import List, Optional
-import asyncio
 from asyncio import Queue
-import traceback
 from datetime import datetime
 
 router = APIRouter(
@@ -88,7 +86,7 @@ async def create_location(
             detail=error_details(f"Error creating location record: {str(e)}")
         )
 
-@router.post(
+@router.get(
     "/query",
     status_code=status.HTTP_200_OK,
     response_model=List[Location],
@@ -97,7 +95,12 @@ async def create_location(
 )
 async def get_locations(
     request: Request,
-    query_params: LocationQuery,
+    username: Optional[str] = None,
+    business_id: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: Optional[int] = 50,
+    offset: Optional[int] = 0,
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -105,16 +108,50 @@ async def get_locations(
     try:
         logger.info(f"Query locations endpoint called: {request.url.path} by user: {current_user.username} (ID: {current_user.id})")
         
+        # Convert date strings to datetime objects if provided
+        start_datetime = None
+        end_datetime = None
+        
+        if start_date:
+            try:
+                start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_details("Invalid start_date format. Use YYYY-MM-DD")
+                )
+        
+        if end_date:
+            try:
+                # Set end_datetime to the end of the specified day
+                end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+                end_datetime = end_datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_details("Invalid end_date format. Use YYYY-MM-DD")
+                )
+        
         # Non-admin users can only query their own locations
-        if not current_user.is_admin and query_params.username and query_params.username != current_user.username:
+        if not current_user.is_admin and username and username != current_user.username:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=error_details("You can only query your own location records")
             )
         
         # If no username provided and not admin, default to current user
-        if not query_params.username and not current_user.is_admin:
-            query_params.username = current_user.username
+        if not username and not current_user.is_admin:
+            username = current_user.username
+        
+        # Construct the query parameters object
+        query_params = LocationQuery(
+            username=username,
+            business_id=business_id,
+            start_date=start_datetime,
+            end_date=end_datetime,
+            limit=limit,
+            offset=offset
+        )
         
         location_db_controller = LocationDBController(db)
         locations = await location_db_controller.get_locations(query_params)

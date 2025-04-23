@@ -2,9 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func, or_, and_
 from models.users_model import ApiUsers
-from location import LocationRecord, LocationCreate, Location, LocationQuery
+from models.location_model import LocationRecord
+from schemas.location_schema import LocationCreate, Location, LocationQuery
 import asyncio
-from asyncio import Queue
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta
 import logging
@@ -31,6 +31,9 @@ class LocationDBController:
         if self.db is None:
             raise Exception("Database session not initialized.")
             
+        # Extract date string in yyyy-mm-dd format from the timestamp
+        xdate = location_data.timestamp.strftime("%Y-%m-%d")
+            
         # Create a new LocationRecord object
         new_location = LocationRecord(
             username=location_data.username,
@@ -48,6 +51,7 @@ class LocationDBController:
             formatted_address=location_data.formatted_address,
             maps_url=location_data.maps_url,
             timestamp=location_data.timestamp,
+            xdate=xdate,  # Set the xdate field with the extracted date string
             business_id=location_data.business_id,
             notes=location_data.notes,
             device_info=location_data.device_info,
@@ -85,11 +89,14 @@ class LocationDBController:
         if query_params.business_id:
             query = query.filter(LocationRecord.business_id == query_params.business_id)
             
+        # Use xdate instead of timestamp for date filtering
         if query_params.start_date:
-            query = query.filter(LocationRecord.timestamp >= query_params.start_date)
+            start_date_str = query_params.start_date.strftime("%Y-%m-%d")
+            query = query.filter(LocationRecord.xdate >= start_date_str)
             
         if query_params.end_date:
-            query = query.filter(LocationRecord.timestamp <= query_params.end_date)
+            end_date_str = query_params.end_date.strftime("%Y-%m-%d")
+            query = query.filter(LocationRecord.xdate <= end_date_str)
             
         # Apply sorting, limit and offset
         query = query.order_by(LocationRecord.timestamp.desc())
@@ -125,6 +132,7 @@ class LocationDBController:
             .order_by(LocationRecord.timestamp.desc())
             .limit(1)
         )
+        
         result = await self.db.execute(query)
         location = result.scalars().first()
         

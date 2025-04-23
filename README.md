@@ -189,6 +189,7 @@ CREATE TABLE location_records (
     maps_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     timestamp TIMESTAMP NOT NULL,
+    xdate VARCHAR(10),
     business_id INTEGER,
     notes TEXT,
     device_info VARCHAR(255),
