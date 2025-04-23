@@ -22,6 +22,7 @@ class Caitem(Base):
     xgitem = Column(String, index=True)
     xstdprice = Column(Numeric(10, 2))
     xunitstk = Column(String)
+    xbin = Column(String(100), nullable=True)  # Added column for product image
 
 
 class Imtrn(Base):
@@ -58,6 +59,7 @@ class FinalItemsView(Base):
     stock = Column(Numeric)
     min_disc_qty = Column(Numeric)
     disc_amt = Column(Numeric)
+    xbin = Column(String(100))  # Added column for product image
 
     # Just omit any primary key declaration for views without one
     # SQLAlchemy will handle it without the need for `primary_key=False`

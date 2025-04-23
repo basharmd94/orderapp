@@ -30,8 +30,7 @@ class ItemsDBController:
         )
 
         transaction_summary = transaction_summary_query.cte("transaction_summary")
-        
-        # Build base query
+          # Build base query
         query = (
             select(
                 Caitem.zid.label("zid"),
@@ -40,6 +39,7 @@ class ItemsDBController:
                 Caitem.xgitem.label("item_group"),
                 Caitem.xstdprice.label("std_price"),
                 Caitem.xunitstk.label("stock_unit"),
+                Caitem.xbin.label("xbin"),  # Added xbin for product image
                 transaction_summary.c.stock,
                 func.coalesce(func.min(Opspprc.xqty), 0).label("min_disc_qty"),
                 func.coalesce(func.min(Opspprc.xdisc), 0).label("disc_amt"),
@@ -76,9 +76,7 @@ class ItemsDBController:
                     Caitem.xitem.ilike(f"%{item_name}%"),
                     Caitem.xgitem.ilike(f"%{item_name}%"),
                 )
-            )
-
-        # Add group by and ordering
+            )        # Add group by and ordering
         query = (
             query.group_by(
                 Caitem.zid,
@@ -87,6 +85,7 @@ class ItemsDBController:
                 Caitem.xgitem,
                 Caitem.xstdprice,
                 Caitem.xunitstk,
+                Caitem.xbin,  # Added xbin for product image
                 transaction_summary.c.stock,
             )
             .order_by(Caitem.xitem)
@@ -117,9 +116,7 @@ class ItemsDBController:
         self, item_name: Union[str, None], limit: int, offset: int
     ) -> List[ItemsSchema]:
         if self.db is None:
-            raise Exception("Database session not initialized.")
-
-        # Start the query to select data from the view
+            raise Exception("Database session not initialized.")        # Start the query to select data from the view
         query = select(
             # Select all columns from the final_items_view (since the view already has them)
             FinalItemsView.zid,
@@ -130,6 +127,7 @@ class ItemsDBController:
             FinalItemsView.stock,
             FinalItemsView.min_disc_qty,
             FinalItemsView.disc_amt,
+            FinalItemsView.xbin,  # Added xbin for product image
         ).select_from(FinalItemsView)
 
         # Add item search filter if item_name is provided
@@ -146,10 +144,7 @@ class ItemsDBController:
         query = query.limit(limit).offset(offset)
 
         # Execute the main query asynchronously
-        result = await self.db.execute(query)
-
-
-        # Convert the query results to a list of ItemsSchema instances
+        result = await self.db.execute(query)        # Convert the query results to a list of ItemsSchema instances
         items = [
             ItemsSchema(
                 zid=item.zid,
@@ -160,6 +155,7 @@ class ItemsDBController:
                 stock=item.stock,
                 min_disc_qty=item.min_disc_qty,
                 disc_amt=item.disc_amt,
+                xbin=item.xbin,  # Added xbin for product image
             )
             for item in result.fetchall()
         ]
@@ -187,8 +183,7 @@ class ItemsDBController:
         )
 
         transaction_summary = transaction_summary_query.cte("transaction_summary")
-        
-        # Build query to get a single item
+          # Build query to get a single item
         query = (
             select(
                 Caitem.zid.label("zid"),
@@ -197,6 +192,7 @@ class ItemsDBController:
                 Caitem.xgitem.label("item_group"),
                 Caitem.xstdprice.label("std_price"),
                 Caitem.xunitstk.label("stock_unit"),
+                Caitem.xbin.label("xbin"),  # Added xbin for product image
                 transaction_summary.c.stock,
                 func.coalesce(func.min(Opspprc.xqty), 0).label("min_disc_qty"),
                 func.coalesce(func.min(Opspprc.xdisc), 0).label("disc_amt"),
@@ -209,14 +205,14 @@ class ItemsDBController:
                 Caitem.zid == zid,
                 Caitem.xitem == item_id,  # Filter by specific item_id
                 # transaction_summary.c.stock > 0, # also show which has 0 stock
-            )
-            .group_by(
+            )            .group_by(
                 Caitem.zid,
                 Caitem.xitem,
                 Caitem.xdesc,
                 Caitem.xgitem,
                 Caitem.xstdprice,
                 Caitem.xunitstk,
+                Caitem.xbin,  # Added xbin for product image
                 transaction_summary.c.stock,
             )
         )
@@ -230,8 +226,7 @@ class ItemsDBController:
         # Return None if no item is found
         if not item:
             return None
-            
-        # Convert the query result to an ItemsSchema instance
+              # Convert the query result to an ItemsSchema instance
         return ItemsSchema(
             zid=item.zid,
             item_id=item.item_id,
@@ -241,4 +236,5 @@ class ItemsDBController:
             stock=item.stock,
             min_disc_qty=item.min_disc_qty,
             disc_amt=item.disc_amt,
+            xbin=item.xbin,  # Added xbin for product image
         )

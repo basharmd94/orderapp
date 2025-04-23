@@ -8,6 +8,7 @@ class ItemsBaseSchema(BaseModel):
     item_group: str
     std_price: float
     stock: float
+    xbin: str = None  # Added field for product image
 
     class Config:
         from_attributes = True

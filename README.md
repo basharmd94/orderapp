@@ -90,18 +90,16 @@ orderapp/
 
 ### Inventory Tables
 - **Caitem**: Product catalog information
-  - Fields: zid, xitem, xdesc, xgitem, xstdprice, xunitstk
+  - Fields: zid, xitem, xdesc, xgitem, xstdprice, xunitstk, xbin
 - **Imtrn**: Inventory movement transactions
   - Fields: zid, xitem, xqty, xsign
 - **Opspprc**: Special pricing information
   - Fields: zid, xpricecat, xqty, xdisc
 - **FinalItemsView**: Materialized view combining inventory data for improved performance
-  - Fields: zid, item_id, item_name, item_group, std_price, stock, min_disc_qty, disc_amt
+  - Fields: zid, item_id, item_name, item_group, std_price, stock, min_disc_qty, disc_amt, xbin
   - SQL Definition:
     ```sql
-    DROP VIEW IF EXISTS final_items_view;
-
-    CREATE MATERIALIZED VIEW final_items_view AS
+    DROP VIEW IF EXISTS final_items_view;    CREATE MATERIALIZED VIEW final_items_view AS
     SELECT
         ci.zid,
         ci.xitem AS item_id,
@@ -109,6 +107,7 @@ orderapp/
         ci.xgitem AS item_group,
         ci.xstdprice AS std_price,
         ci.xunitstk AS stock_unit,
+        ci.xbin AS xbin,
         ts.stock,
         COALESCE(MIN(op.xqty), 0) AS min_disc_qty,
         COALESCE(MIN(op.xdisc), 0) AS disc_amt
@@ -146,14 +145,14 @@ orderapp/
             'IT', 'Logistical Item', 'Packaging Item (P)', 'Manufacturing Item',
             'Packaging Item PL'
         )
-        AND ci.zid NOT IN (100002, 100003, 100004, 100006, 100007, 100008, 100009)
-    GROUP BY
+        AND ci.zid NOT IN (100002, 100003, 100004, 100006, 100007, 100008, 100009)    GROUP BY
         ci.zid,
         ci.xitem,
         ci.xdesc,
         ci.xgitem,
         ci.xstdprice,
         ci.xunitstk,
+        ci.xbin,
         ts.stock
     ORDER BY
         ci.zid,
