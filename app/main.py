@@ -21,6 +21,7 @@ from routers import (
     user_manage_route,
     customer_balance_route,  # Add customer balance route
     location_route,  # Add location route
+    feedback_route,  # Add feedback route
 )
 
 from database import engine, Base, get_db
@@ -113,6 +114,10 @@ tags_metadata = [
     {
         "name": "Location",
         "description": "User location tracking and geolocation management.",
+    },
+    {
+        "name": "Feedback",
+        "description": "Customer feedback management including delivery and collection issues.",
     },
 ]
 
@@ -330,6 +335,12 @@ router_configs = [
         "prefix": f"{API_PREFIX}/location",
         "tags": ["Location"],
         "responses": {404: {"description": "Location data not found"}},
+    },
+    {
+        "router": feedback_route.router,
+        "prefix": f"{API_PREFIX}/feedback",
+        "tags": ["Feedback"],
+        "responses": {404: {"description": "Feedback data not found"}},
     },
 ]
 
