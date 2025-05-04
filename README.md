@@ -206,39 +206,24 @@ CREATE INDEX idx_location_business_id ON location_records(business_id);
 
 ```sql
   -- Create the main feedback table
-  CREATE TABLE feedback (
-      id SERIAL,
-      zid INTEGER NOT NULL,
-      is_delivery_issue BOOLEAN DEFAULT FALSE,
-      is_collection_issue BOOLEAN DEFAULT FALSE,
-      description TEXT NOT NULL,
-      translated_desc TEXT DEFAULT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP,
-      created_by VARCHAR(50) REFERENCES "apiUsers"(username),
-      user_id VARCHAR(50),
-      PRIMARY KEY (id, zid)
-  );
+  -- Create the simplified feedback table
+CREATE TABLE feedback (
+    id SERIAL,
+    zid INTEGER NOT NULL,
+    customer_id VARCHAR NOT NULL,
+    product_id VARCHAR NOT NULL,
+    is_delivery_issue BOOLEAN DEFAULT FALSE,
+    is_collection_issue BOOLEAN DEFAULT FALSE,
+    description TEXT NOT NULL,
+    translated_desc TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    created_by VARCHAR(50) REFERENCES "apiUsers"(username),
+    user_id VARCHAR(50),
+    PRIMARY KEY (id, zid)
+     );
 
-  -- Create the association table for feedback-customer many-to-many relationship
-  CREATE TABLE feedback_customer_association (
-      feedback_id INTEGER NOT NULL,
-      zid INTEGER NOT NULL,
-      customer_id VARCHAR NOT NULL,
-      PRIMARY KEY (feedback_id, zid, customer_id),
-      FOREIGN KEY (feedback_id, zid) REFERENCES feedback(id, zid) ON DELETE CASCADE,
-      FOREIGN KEY (zid, customer_id) REFERENCES cacus(zid, xcus) ON DELETE CASCADE
-  );
-
-  -- Create the association table for feedback-product many-to-many relationship
-  CREATE TABLE feedback_product_association (
-      feedback_id INTEGER NOT NULL,
-      zid INTEGER NOT NULL,
-      product_id VARCHAR NOT NULL,
-      PRIMARY KEY (feedback_id, zid, product_id),
-      FOREIGN KEY (feedback_id, zid) REFERENCES feedback(id, zid) ON DELETE CASCADE,
-      FOREIGN KEY (zid, product_id) REFERENCES caitem(zid, xitem) ON DELETE CASCADE
-  ); ```
+```
 
 
 ### Customer Tables

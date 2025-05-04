@@ -1,10 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 
 class FeedbackBase(BaseModel):
     """Base schema for feedback with common fields."""
     zid: int = Field(..., description="Business ID")
+    customer_id: str = Field(..., description="Customer ID associated with the feedback")
+    product_id: str = Field(..., description="Product ID associated with the feedback")
     is_delivery_issue: bool = Field(default=False, description="Whether there's a delivery issue")
     is_collection_issue: bool = Field(default=False, description="Whether there's a collection issue")
     description: str = Field(..., description="Detailed feedback description (can be in Bangla)")
@@ -14,16 +16,14 @@ class FeedbackBase(BaseModel):
 
 class FeedbackCreate(FeedbackBase):
     """Schema for creating new feedback."""
-    customer_ids: List[str] = Field(..., description="List of customer IDs associated with the feedback")
-    product_ids: List[str] = Field(..., description="List of product IDs associated with the feedback")
     user_id: Optional[str] = Field(None, description="User ID associated with the feedback")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "zid": 100001,
-                "customer_ids": ["CUS-000001", "CUS-000002"],
-                "product_ids": ["CF000001", "CF000002"],
+                "customer_id": "CUS-000001",
+                "product_id": "1281",
                 "is_delivery_issue": True,
                 "is_collection_issue": False,
                 "description": "পণ্যটি ভালো ছিল কিন্তু প্যাকেজিং ক্ষতিগ্রস্ত হয়েছে",
@@ -39,8 +39,6 @@ class FeedbackResponse(FeedbackBase):
     updated_at: Optional[datetime] = None
     created_by: str
     user_id: Optional[str] = None
-    customer_ids: List[str]
-    product_ids: List[str]
     
     class Config:
         from_attributes = True

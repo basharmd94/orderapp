@@ -6,7 +6,7 @@ from schemas.feedback_schema import FeedbackCreate, FeedbackResponse, FeedbackQu
 from schemas.user_schema import UserRegistrationSchema
 from utils.auth import get_current_normal_user
 from logs import setup_logger
-from typing import List, Dict, Any
+from typing import List
 
 router = APIRouter(
     tags=["Feedback"],
@@ -32,8 +32,8 @@ async def create_feedback(
     Create a new feedback entry.
     
     - **zid**: Business ID
-    - **customer_ids**: List of customer IDs associated with the feedback
-    - **product_ids**: List of product IDs associated with the feedback
+    - **customer_id**: Customer ID associated with the feedback
+    - **product_id**: Product ID associated with the feedback
     - **is_delivery_issue**: Whether there's a delivery issue (default: false)
     - **is_collection_issue**: Whether there's a collection issue (default: false)
     - **description**: Detailed feedback description (can be in Bangla)
@@ -92,7 +92,7 @@ async def get_feedbacks(
         feedback_controller = FeedbackDBController(db)
         results = await feedback_controller.get_feedbacks(query_params)
         
-        # Convert to response format - dictionary is already in correct format
+        # Convert to response format
         return [FeedbackResponse(**result) for result in results]
     except Exception as e:
         logger.error(f"Error getting feedbacks: {str(e)}")
