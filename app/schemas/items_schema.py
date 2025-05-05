@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Optional
 
 
 class ItemsBaseSchema(BaseModel):
@@ -8,7 +9,7 @@ class ItemsBaseSchema(BaseModel):
     item_group: str
     std_price: float
     stock: float
-    xbin: str = None  # Added field for product image
+    xbin: Optional[str] = None  # Changed to Optional[str] for product image
 
     class Config:
         from_attributes = True
