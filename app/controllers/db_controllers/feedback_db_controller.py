@@ -41,44 +41,45 @@ class FeedbackDBController:
                     detail=f"Customer {feedback_data.customer_id} not found in business {feedback_data.zid}"
                 )
             
-            # Verify product exists
-            product_result = await self.db.execute(
-                select(Caitem).filter(
-                    and_(
-                        Caitem.zid == feedback_data.zid,
-                        Caitem.xitem == feedback_data.product_id
-                    )
-                )
-            )
-            product = product_result.scalars().first()
-            
-            if not product:
-                # Try numeric product ID if not found directly
-                try:
-                    product_id_numeric = feedback_data.product_id
-                    product_result = await self.db.execute(
-                        select(Caitem).filter(
-                            and_(
-                                Caitem.zid == feedback_data.zid,
-                                Caitem.xitem.like(f"%{product_id_numeric}")
-                            )
+            # Verify product exists (only if product_id is provided)
+            if feedback_data.product_id is not None:
+                product_result = await self.db.execute(
+                    select(Caitem).filter(
+                        and_(
+                            Caitem.zid == feedback_data.zid,
+                            Caitem.xitem == feedback_data.product_id
                         )
                     )
-                    product = product_result.scalars().first()
-                    
-                    if product:
-                        # Use the actual product ID from database
-                        feedback_data.product_id = product.xitem
-                    else:
+                )
+                product = product_result.scalars().first()
+                
+                if not product:
+                    # Try numeric product ID if not found directly
+                    try:
+                        product_id_numeric = feedback_data.product_id
+                        product_result = await self.db.execute(
+                            select(Caitem).filter(
+                                and_(
+                                    Caitem.zid == feedback_data.zid,
+                                    Caitem.xitem.like(f"%{product_id_numeric}")
+                                )
+                            )
+                        )
+                        product = product_result.scalars().first()
+                        
+                        if product:
+                            # Use the actual product ID from database
+                            feedback_data.product_id = product.xitem
+                        else:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Product {feedback_data.product_id} not found in business {feedback_data.zid}"
+                            )
+                    except (ValueError, TypeError):
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"Product {feedback_data.product_id} not found in business {feedback_data.zid}"
                         )
-                except (ValueError, TypeError):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Product {feedback_data.product_id} not found in business {feedback_data.zid}"
-                    )
             
             # Create feedback object with base data
             new_feedback = Feedback(

@@ -10,7 +10,7 @@ class Feedback(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     zid = Column(Integer, primary_key=True)
     customer_id = Column(String, nullable=False)
-    product_id = Column(String, nullable=False)
+    product_id = Column(String, nullable=True)  # Changed to nullable=True
     is_delivery_issue = Column(Boolean, default=False)
     is_collection_issue = Column(Boolean, default=False)
     description = Column(Text, nullable=False)
