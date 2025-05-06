@@ -42,6 +42,7 @@ class FeedbackDBController:
                 )
             
             # Verify product exists (only if product_id is provided)
+            valid_product = False
             if feedback_data.product_id is not None:
                 product_result = await self.db.execute(
                     select(Caitem).filter(
@@ -53,7 +54,9 @@ class FeedbackDBController:
                 )
                 product = product_result.scalars().first()
                 
-                if not product:
+                if product:
+                    valid_product = True
+                else:
                     # Try numeric product ID if not found directly
                     try:
                         product_id_numeric = feedback_data.product_id
@@ -70,16 +73,15 @@ class FeedbackDBController:
                         if product:
                             # Use the actual product ID from database
                             feedback_data.product_id = product.xitem
+                            valid_product = True
                         else:
-                            raise HTTPException(
-                                status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f"Product {feedback_data.product_id} not found in business {feedback_data.zid}"
-                            )
+                            # Product not found, set to None instead of raising an error
+                            logger.warning(f"Product {feedback_data.product_id} not found, setting to None")
+                            feedback_data.product_id = None
                     except (ValueError, TypeError):
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Product {feedback_data.product_id} not found in business {feedback_data.zid}"
-                        )
+                        # Product not found, set to None instead of raising an error
+                        logger.warning(f"Product {feedback_data.product_id} not found, setting to None")
+                        feedback_data.product_id = None
             
             # Create feedback object with base data
             new_feedback = Feedback(
