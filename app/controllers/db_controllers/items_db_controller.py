@@ -50,7 +50,7 @@ class ItemsDBController:
             )
             .filter(
                 Caitem.zid == zid,
-                transaction_summary.c.stock > 0,
+                # transaction_summary.c.stock > 0,
                 Caitem.xgitem.notin_(
                     [
                         "Stationary",
