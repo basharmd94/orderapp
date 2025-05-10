@@ -66,6 +66,7 @@ class ItemsDBController:
                     ]
                 ),
             )
+            
         )
 
         # Add item search filter only if item_name is provided
