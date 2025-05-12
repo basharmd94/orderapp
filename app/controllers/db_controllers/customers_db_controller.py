@@ -24,77 +24,87 @@ class CustomersDBController:
         if self.db is None:
             raise Exception("Database session not initialized.")
 
-        user_id = employee_id
-        
-        stmt = (
-            select(
-                Cacus.zid.label("zid"),
-                Cacus.xcus.label("xcus"),
-                Cacus.xorg.label("xorg"),
-                Cacus.xadd1.label("xadd1"),
-                Cacus.xcity.label("xcity"),
-                Cacus.xstate.label("xstate"),
-                Cacus.xmobile.label("xmobile"),
-                Cacus.xtaxnum.label("xtaxnum"),
-                Cacus.xsp.label("xsp"),
-                Cacus.xsp1.label("xsp1"),
-                Cacus.xsp2.label("xsp2"),
-                Cacus.xsp3.label("xsp3"),
-            )
-            .filter(
-                Cacus.zid == zid,
-                or_(
-                    Cacus.xcus.ilike(f"%{customer}%"),
-                    Cacus.xorg.ilike(f"%{customer}%"),
-                    Cacus.xcity.ilike(f"%{customer}%"),
-                    Cacus.xtaxnum.ilike(f"%{customer}%"),
-                    Cacus.xmobile.ilike(f"%{customer}%"),
-                ),
-                and_(
+        try:
+            user_id = employee_id
+            
+            stmt = (
+                select(
+                    Cacus.zid.label("zid"),
+                    Cacus.xcus.label("xcus"),
+                    Cacus.xorg.label("xorg"),
+                    Cacus.xadd1.label("xadd1"),
+                    Cacus.xcity.label("xcity"),
+                    Cacus.xstate.label("xstate"),
+                    Cacus.xmobile.label("xmobile"),
+                    Cacus.xtaxnum.label("xtaxnum"),
+                    Cacus.xsp.label("xsp"),
+                    Cacus.xsp1.label("xsp1"),
+                    Cacus.xsp2.label("xsp2"),
+                    Cacus.xsp3.label("xsp3"),
+                )
+                .filter(
+                    Cacus.zid == zid,
                     or_(
-                        Cacus.xsp == user_id,
-                        Cacus.xsp1 == user_id,
-                        Cacus.xsp2 == user_id,
-                        Cacus.xsp3 == user_id
+                        Cacus.xcus.ilike(f"%{customer}%"),
+                        Cacus.xorg.ilike(f"%{customer}%"),
+                        Cacus.xcity.ilike(f"%{customer}%"),
+                        Cacus.xtaxnum.ilike(f"%{customer}%"),
+                        Cacus.xmobile.ilike(f"%{customer}%"),
+                    ),
+                    and_(
+                        or_(
+                            Cacus.xsp == user_id,
+                            Cacus.xsp1 == user_id,
+                            Cacus.xsp2 == user_id,
+                            Cacus.xsp3 == user_id
+                        )
                     )
                 )
+                .order_by(Cacus.xcus)
+                .limit(limit)
+                .offset(offset)
             )
-            .order_by(Cacus.xcus)
-            .limit(limit)
-            .offset(offset)
-        )
 
-        # Execute the query asynchronously
-        result = await self.db.execute(stmt)
-        customers_records = result.fetchall()
+            # Execute the query asynchronously
+            result = await self.db.execute(stmt)
+            customers_records = result.fetchall()
 
-        # Check if we found any customers before processing
-        if not customers_records:
+            # Check if we found any customers before processing
+            if not customers_records:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No customers found for employee ID: {user_id}"
+                )
+
+            # Convert query results to list of CustomersSchema instances
+            customers = [
+                CustomersSchema(
+                    zid=customer.zid,
+                    xcus=customer.xcus,
+                    xorg=customer.xorg,
+                    xadd1=customer.xadd1,
+                    xcity=customer.xcity,
+                    xstate=customer.xstate,
+                    xmobile=customer.xmobile,
+                    xtaxnum=customer.xtaxnum,
+                    xsp=customer.xsp,
+                    xsp1=customer.xsp1,
+                    xsp2=customer.xsp2,
+                    xsp3=customer.xsp3,
+                )
+                for customer in customers_records
+            ]
+
+            return customers
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting customers for employee {employee_id}: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No customers found for employee ID: {user_id}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving customer information"
             )
-
-        # Convert query results to list of CustomersSchema instances
-        customers = [
-            CustomersSchema(
-                zid=customer.zid,
-                xcus=customer.xcus,
-                xorg=customer.xorg,
-                xadd1=customer.xadd1,
-                xcity=customer.xcity,
-                xstate=customer.xstate,
-                xmobile=customer.xmobile,
-                xtaxnum=customer.xtaxnum,
-                xsp=customer.xsp,
-                xsp1=customer.xsp1,
-                xsp2=customer.xsp2,
-                xsp3=customer.xsp3,
-            )
-            for customer in customers_records
-        ]
-
-        return customers
         
     async def get_all_customers_sync(
         self, employee_id: str, limit: int, offset: int, current_user: UserRegistrationSchema = Depends(get_current_normal_user),
@@ -102,69 +112,79 @@ class CustomersDBController:
         """Get all customers across all businesses for a specific employee ID."""
         if self.db is None:
             raise Exception("Database session not initialized.")
-
-        user_id = employee_id
-        
-        # Construct the async query without zid filter
-        stmt = (
-            select(
-                Cacus.zid.label("zid"),
-                Cacus.xcus.label("xcus"),
-                Cacus.xorg.label("xorg"),
-                Cacus.xadd1.label("xadd1"),
-                Cacus.xcity.label("xcity"),
-                Cacus.xstate.label("xstate"),
-                Cacus.xmobile.label("xmobile"),
-                Cacus.xtaxnum.label("xtaxnum"),
-                Cacus.xsp.label("xsp"),
-                Cacus.xsp1.label("xsp1"),
-                Cacus.xsp2.label("xsp2"),
-                Cacus.xsp3.label("xsp3"),
-            )
-            .filter(
-                or_(
-                    Cacus.xsp == user_id,
-                    Cacus.xsp1 == user_id,
-                    Cacus.xsp2 == user_id,
-                    Cacus.xsp3 == user_id
+            
+        try:
+            user_id = employee_id
+            
+            # Construct the async query without zid filter
+            stmt = (
+                select(
+                    Cacus.zid.label("zid"),
+                    Cacus.xcus.label("xcus"),
+                    Cacus.xorg.label("xorg"),
+                    Cacus.xadd1.label("xadd1"),
+                    Cacus.xcity.label("xcity"),
+                    Cacus.xstate.label("xstate"),
+                    Cacus.xmobile.label("xmobile"),
+                    Cacus.xtaxnum.label("xtaxnum"),
+                    Cacus.xsp.label("xsp"),
+                    Cacus.xsp1.label("xsp1"),
+                    Cacus.xsp2.label("xsp2"),
+                    Cacus.xsp3.label("xsp3"),
                 )
+                .filter(
+                    or_(
+                        Cacus.xsp == user_id,
+                        Cacus.xsp1 == user_id,
+                        Cacus.xsp2 == user_id,
+                        Cacus.xsp3 == user_id
+                    )
+                )
+                .order_by(Cacus.xcus)
+                .limit(limit)
+                .offset(offset)
             )
-            .order_by(Cacus.xcus)
-            .limit(limit)
-            .offset(offset)
-        )
 
-        # Execute the query asynchronously
-        result = await self.db.execute(stmt)
-        customers_records = result.fetchall()
+            # Execute the query asynchronously
+            result = await self.db.execute(stmt)
+            customers_records = result.fetchall()
 
-        # Check if we found any customers before processing
-        if not customers_records:
+            # Check if we found any customers before processing
+            if not customers_records:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No customers found for employee ID: {user_id}"
+                )
+
+            # Convert query results to list of CustomersSchema instances
+            customers = [
+                CustomersSchema(
+                    zid=customer.zid,
+                    xcus=customer.xcus,
+                    xorg=customer.xorg,
+                    xadd1=customer.xadd1,
+                    xcity=customer.xcity,
+                    xstate=customer.xstate,
+                    xmobile=customer.xmobile,
+                    xtaxnum=customer.xtaxnum,
+                    xsp=customer.xsp,
+                    xsp1=customer.xsp1,
+                    xsp2=customer.xsp2,
+                    xsp3=customer.xsp3,
+                )
+                for customer in customers_records
+            ]
+
+            return customers
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting synchronized customers for employee {employee_id}: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No customers found for employee ID: {user_id}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving customer information"
             )
-
-        # Convert query results to list of CustomersSchema instances
-        customers = [
-            CustomersSchema(
-                zid=customer.zid,
-                xcus=customer.xcus,
-                xorg=customer.xorg,
-                xadd1=customer.xadd1,
-                xcity=customer.xcity,
-                xstate=customer.xstate,
-                xmobile=customer.xmobile,
-                xtaxnum=customer.xtaxnum,
-                xsp=customer.xsp,
-                xsp1=customer.xsp1,
-                xsp2=customer.xsp2,
-                xsp3=customer.xsp3,
-            )
-            for customer in customers_records
-        ]
-
-        return customers
 
     async def get_salesman_by_area(self, zid: int, area: str):
         """Get salesman information for a specific area."""

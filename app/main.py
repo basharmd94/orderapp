@@ -24,7 +24,7 @@ from routers import (
     feedback_route,  # Add feedback route
 )
 
-from database import engine, Base, get_db
+from database import engine, Base, get_db, async_session_maker
 from logs import setup_logger
 from utils.auth import session_activity_middleware
 
@@ -41,17 +41,52 @@ def validate_env_vars():
         "ALGORITHM": lambda x: x in ["HS256", "HS384", "HS512"],  # Only allow HMAC-SHA algorithms
         "ACCESS_TOKEN_EXPIRE_MINUTES": lambda x: x.isdigit() and 60 <= int(x) <= 120,  # Between 5-60 minutes
         "REFRESH_TOKEN_EXPIRE_DAYS": lambda x: x.isdigit() and 1 <= int(x) <= 30,  # Between 1-30 days
-        "DATABASE_URL": lambda x: x.startswith(("postgresql+asyncpg://", "postgresql://")),
+        "DATABASE_URL": lambda x: "postgresql" in x,  # Simplified validation for database URL
         "MAX_LOGIN_ATTEMPTS": lambda x: x.isdigit() and 1 <= int(x) <= 10,
         "LOCKOUT_TIME_SECONDS": lambda x: x.isdigit() and 60 <= int(x) <= 3600,
     }
+    
+    missing_vars = []
+    invalid_vars = []
 
     for var_name, validator in required_env_vars.items():
         value = os.getenv(var_name)
         if not value:
-            raise ValueError(f"Required environment variable {var_name} is not set!")
+            missing_vars.append(var_name)
+            continue
+        
+        # Special handling for database URL to handle escape characters
+        if var_name == "DATABASE_URL":
+            # Handle various escape sequences
+            escape_chars = {
+                '\\x3a': ':',
+                '\\x40': '@',
+                '\\x2f': '/',
+                '\\x3f': '?',
+                '\\x3d': '=',
+                '\\x26': '&',
+            }
+            
+            fixed_value = value
+            for escape_seq, char in escape_chars.items():
+                if escape_seq in fixed_value:
+                    fixed_value = fixed_value.replace(escape_seq, char)
+                    logger.info(f"Replaced escape sequence {escape_seq} with {char} in DATABASE_URL")
+            
+            if fixed_value != value:
+                logger.info(f"Fixed DATABASE_URL: {fixed_value}")
+                os.environ[var_name] = fixed_value
+                value = fixed_value
+        
         if not validator(value):
-            raise ValueError(f"Environment variable {var_name} has invalid value: {value}")
+            invalid_vars.append(f"{var_name}={value}")
+    
+    if missing_vars:
+        raise ValueError(f"Required environment variables not set: {', '.join(missing_vars)}")
+    if invalid_vars:
+        raise ValueError(f"Invalid environment variable values: {', '.join(invalid_vars)}")
+
+    logger.info("Environment variables validated successfully")
 
 # Validate environment variables at startup
 validate_env_vars()
@@ -121,8 +156,6 @@ tags_metadata = [
     },
 ]
 
-
-
 # Function to create tables asynchronously
 async def create_database():
     """Create all tables in the database asynchronously if they don't already exist."""
@@ -153,11 +186,6 @@ async def lifespan(app: FastAPI):
             logger.info("Application shutdown completed.")
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
-
-
-
-
-
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -209,13 +237,14 @@ app.add_middleware(
 # Add session activity middleware with database dependency
 @app.middleware("http")
 async def add_db_to_request(request: Request, call_next):
-    # Set database session in request state
-    async for db in get_db():
+    # Create a new session from the existing engine pool
+    async with async_session_maker() as db:
         request.state.db = db
         try:
             response = await call_next(request)
             return response
         finally:
+            # Ensure session is closed properly
             await db.close()
 
 # Add session activity middleware after database middleware
@@ -363,7 +392,6 @@ if app.debug and has_test_routes:
         tags=["Development"],
     )
 
-
 # Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
@@ -397,8 +425,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8500,
         reload=True,
-        workers=4,
+        workers=4,  # Increased to 4 workers with PostgreSQL max_connections=800
         log_level="info"
     )
-
-
