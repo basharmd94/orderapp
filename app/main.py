@@ -22,6 +22,7 @@ from routers import (
     customer_balance_route,  # Add customer balance route
     location_route,  # Add location route
     feedback_route,  # Add feedback route
+    manufacturing_route,  # Add manufacturing route
 )
 
 from database import engine, Base, get_db, async_session_maker
@@ -149,10 +150,13 @@ tags_metadata = [
     {
         "name": "Location",
         "description": "User location tracking and geolocation management.",
-    },
-    {
+    },    {
         "name": "Feedback",
         "description": "Customer feedback management including delivery and collection issues.",
+    },
+    {
+        "name": "Manufacturing",
+        "description": "Manufacturing operations including production orders and inventory tracking.",
     },
 ]
 
@@ -364,12 +368,17 @@ router_configs = [
         "prefix": f"{API_PREFIX}/location",
         "tags": ["Location"],
         "responses": {404: {"description": "Location data not found"}},
-    },
-    {
+    },    {
         "router": feedback_route.router,
         "prefix": f"{API_PREFIX}/feedback",
         "tags": ["Feedback"],
         "responses": {404: {"description": "Feedback data not found"}},
+    },
+    {
+        "router": manufacturing_route.router,
+        "prefix": f"{API_PREFIX}/manufacturing",
+        "tags": ["Manufacturing"],
+        "responses": {404: {"description": "Manufacturing data not found"}},
     },
 ]
 
@@ -424,7 +433,7 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8500,
-        reload=True,
+        reload=False,
         workers=4,  # Increased to 4 workers with PostgreSQL max_connections=800
         log_level="info"
     )

@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, MetaData
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, Float, Date
 from database import Base
 
 class GLHeader(Base):

@@ -1,0 +1,150 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from models.manufacturing_model import Moord
+from schemas.manufacturing_schema import ManufacturingOrderSchema
+from typing import List, Dict, Any, Optional, Tuple
+from fastapi import Depends, HTTPException, status
+from logs import setup_logger
+import math
+
+logger = setup_logger()
+
+class ManufacturingDBController:
+    """Controller for handling manufacturing-related database operations."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get_all_mo(
+        self, zid: int, search_text: Optional[str] = None, page: int = 1, size: int = 10
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        Get manufacturing orders with pagination and filtering.
+        
+        Args:
+            zid: Company ID
+            search_text: Optional text to search in item code, item name, date, or MO number
+            page: Page number (1-based)
+            size: Number of items per page
+            
+        Returns:
+            Tuple containing list of manufacturing orders and total count
+        """
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        try:
+            # Calculate offset
+            offset = (page - 1) * size
+            
+            # Base query parameters with type hints
+            params = {
+                "zid": zid,
+                "limit": size,
+                "offset": offset,
+                "search_pattern": f"%{search_text}%" if search_text else None
+            }
+
+            # Main query with explicit type casting and ILIKE for search
+            query = text("""            WITH LastTenMO AS (            SELECT DISTINCT
+                    m.zid,
+                    m.xdatemo, 
+                    m.xmoord, 
+                    m.xitem, 
+                    m.xqtyprd, 
+                    m.xunit
+                FROM 
+                    moord m
+                    LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+                WHERE 
+                    m.zid = CAST(:zid AS INTEGER)
+                    AND (
+                        CAST(:search_pattern AS TEXT) IS NULL
+                        OR m.xmoord::text ILIKE CAST(:search_pattern AS TEXT)
+                        OR m.xitem::text ILIKE CAST(:search_pattern AS TEXT)
+                        OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
+                        OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
+                    )
+                ORDER BY 
+                    xdatemo DESC
+                LIMIT :limit OFFSET :offset
+            )
+            SELECT 
+                m.zid,
+                m.xdatemo as xdate,
+                m.xmoord,
+                m.xitem,
+                c.xdesc,
+                m.xqtyprd,
+                m.xunit,
+                COALESCE(SUM(i.xqty * i.xsign), 0) AS stock,
+                (
+                    SELECT mo2.xqtyprd
+                    FROM moord mo2
+                    WHERE mo2.zid = m.zid
+                    AND mo2.xitem = m.xitem
+                    AND mo2.xdatemo < m.xdatemo
+                    ORDER BY mo2.xdatemo DESC
+                    LIMIT 1
+                ) AS last_mo_qty,
+                (
+                    SELECT mo2.xdatemo
+                    FROM moord mo2
+                    WHERE mo2.zid = m.zid
+                    AND mo2.xitem = m.xitem
+                    AND mo2.xdatemo < m.xdatemo
+                    ORDER BY mo2.xdatemo DESC
+                    LIMIT 1
+                ) AS last_mo_date,
+                (
+                    SELECT mo2.xmoord
+                    FROM moord mo2
+                    WHERE mo2.zid = m.zid
+                    AND mo2.xitem = m.xitem
+                    AND mo2.xdatemo < m.xdatemo
+                    ORDER BY mo2.xdatemo DESC
+                    LIMIT 1
+                ) AS last_mo_number
+            FROM 
+                LastTenMO m
+                LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+                LEFT JOIN imtrn i ON m.xitem = i.xitem AND i.zid = m.zid
+            GROUP BY 
+                m.zid, m.xdatemo, m.xmoord, m.xitem, c.xdesc, m.xqtyprd, m.xunit
+            ORDER BY 
+                m.xdatemo DESC
+            """)
+            
+            # Count query with matching search pattern
+            count_query = text("""            SELECT COUNT(DISTINCT m.xmoord) as total
+            FROM moord m
+            LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+            WHERE 
+                m.zid = CAST(:zid AS INTEGER)
+                AND (
+                    CAST(:search_pattern AS TEXT) IS NULL
+                    OR m.xmoord::text ILIKE CAST(:search_pattern AS TEXT)
+                    OR m.xitem::text ILIKE CAST(:search_pattern AS TEXT)
+                    OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
+                    OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
+                )
+            """)
+            
+            # Execute queries
+            result = await self.db.execute(query, params)
+            rows = result.mappings().all()
+            
+            count_result = await self.db.execute(count_query, params)
+            total = count_result.scalar()
+            
+            # Convert to list of dictionaries
+            manufacturing_orders = [dict(row) for row in rows]
+            
+            return manufacturing_orders, total
+            
+        except Exception as e:
+            logger.error("Error getting manufacturing orders: from manufacturing_db_controller")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error getting manufacturing orders: from manufacturing_db_controller",
+            )
