@@ -15,6 +15,7 @@ class ManufacturingOrderSchema(BaseModel):
     last_mo_qty: Optional[float] = None
     last_mo_date: Optional[date] = None
     last_mo_number: Optional[str] = None
+    mo_cost: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -36,13 +37,13 @@ class ManufacturingOrderListResponse(BaseModel):
                         "xdate": "2025-05-01",
                         "xmoord": "MO-2025-001",
                         "xitem": "ITEM1",
-                        "xdesc": "Product Description",
-                        "xqtyprd": 100.0,
+                        "xdesc": "Product Description",                        "xqtyprd": 100.0,
                         "xunit": "PCS",
                         "stock": 250.0,
                         "last_mo_qty": 75.0,
                         "last_mo_date": "2025-04-15",
-                        "last_mo_number": "MO-2025-0890"
+                        "last_mo_number": "MO-2025-0890",
+                        "mo_cost": 125.50
                     }
                 ],
                 "total": 45,

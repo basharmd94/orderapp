@@ -46,7 +46,9 @@ class ManufacturingDBController:
             }
 
             # Main query with explicit type casting and ILIKE for search
-            query = text("""            WITH LastTenMO AS (            SELECT DISTINCT
+            query = text("""
+            WITH LastTenMO AS (
+                SELECT DISTINCT
                     m.zid,
                     m.xdatemo, 
                     m.xmoord, 
@@ -66,8 +68,21 @@ class ManufacturingDBController:
                         OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
                     )
                 ORDER BY 
-                    xdatemo DESC
+                    m.xdatemo DESC
                 LIMIT :limit OFFSET :offset
+            ),
+            MO_Costs AS (
+                SELECT
+                    moord.xmoord,
+                    ROUND(COALESCE(SUM(moodt.xqty * moodt.xrate), 0) / NULLIF(moord.xqtyprd, 0), 2) AS mo_cost
+                FROM 
+                    moord
+                    LEFT JOIN moodt ON moord.xmoord = moodt.xmoord AND moord.zid = moodt.zid
+                WHERE 
+                    moord.zid = CAST(:zid AS INTEGER)
+                GROUP BY 
+                    moord.xmoord, 
+                    moord.xqtyprd
             )
             SELECT 
                 m.zid,
@@ -104,19 +119,22 @@ class ManufacturingDBController:
                     AND mo2.xdatemo < m.xdatemo
                     ORDER BY mo2.xdatemo DESC
                     LIMIT 1
-                ) AS last_mo_number
+                ) AS last_mo_number,
+                mc.mo_cost
             FROM 
                 LastTenMO m
                 LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
                 LEFT JOIN imtrn i ON m.xitem = i.xitem AND i.zid = m.zid
+                LEFT JOIN MO_Costs mc ON m.xmoord = mc.xmoord
             GROUP BY 
-                m.zid, m.xdatemo, m.xmoord, m.xitem, c.xdesc, m.xqtyprd, m.xunit
+                m.zid, m.xdatemo, m.xmoord, m.xitem, c.xdesc, m.xqtyprd, m.xunit, mc.mo_cost
             ORDER BY 
                 m.xdatemo DESC
             """)
             
             # Count query with matching search pattern
-            count_query = text("""            SELECT COUNT(DISTINCT m.xmoord) as total
+            count_query = text("""
+            SELECT COUNT(DISTINCT m.xmoord) as total
             FROM moord m
             LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
             WHERE 
