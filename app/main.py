@@ -433,7 +433,7 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8500,
-        reload=False,
+        reload=True,
         workers=4,  # Increased to 4 workers with PostgreSQL max_connections=800
         log_level="info"
     )

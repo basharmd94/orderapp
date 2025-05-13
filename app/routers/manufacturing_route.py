@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Query, Depends, Request, Path
+from fastapi import APIRouter, HTTPException, status, Query, Depends, Request, Path, Response
 from schemas.manufacturing_schema import (
     ManufacturingOrderSchema,
     ManufacturingOrderListResponse,
@@ -15,6 +15,8 @@ from logs import setup_logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 import math
+import csv
+import io
 
 router = APIRouter()
 logger = setup_logger()
@@ -120,4 +122,93 @@ async def get_mo_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_details(f"Failed to retrieve manufacturing order details: {str(e)}")
+        )
+
+@router.get(
+    "/mo-export/{zid}/{mo_number}",
+    summary="Export Manufacturing Order Details as CSV",
+    description="Export detailed information for a specific manufacturing order as a CSV file. Note: Use direct API URL in browser to download, not through Swagger UI.",
+    response_class=Response
+)
+async def export_mo_detail_csv(
+    request: Request,
+    zid: int = Path(..., description="Company ID", ge=1),
+    mo_number: str = Path(..., description="Manufacturing Order Number"),
+    download: bool = Query(True, description="Set to false to view in browser without downloading"),
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export detailed information about a specific manufacturing order as a CSV file.
+    
+    - **zid**: Company ID (required)
+    - **mo_number**: Manufacturing Order Number (required)
+    - **download**: Set to false to view in browser without downloading (default: true)
+    
+    Returns a CSV file containing details of items used in the manufacturing order.
+    
+    **Note:** For file download, access the URL directly in browser, not through Swagger UI:
+    `/mo-export/{zid}/{mo_number}`
+    """
+    try:
+        # Initialize manufacturing DB controller
+        manufacturing_controller = ManufacturingDBController(db)
+        
+        # Get manufacturing order details using the existing controller method
+        mo_details = await manufacturing_controller.get_mo_detail(
+            zid=zid,
+            mo_number=mo_number
+        )
+        
+        # Create a CSV file in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers
+        headers = [
+            "Item Code", 
+            "Description", 
+            "Unit", 
+            "Quantity", 
+            "Rate", 
+            "Total Amount", 
+            "Cost Per Item", 
+            "Available Stock"
+        ]
+        writer.writerow(headers)
+        
+        # Write data rows
+        for item in mo_details:
+            writer.writerow([
+                item["xitem"],
+                item["xdesc"],
+                item["xunit"],
+                item["raw_qty"],
+                item["rate"],
+                item["total_amt"],
+                item["cost_per_item"],
+                item["stock"]
+            ])
+        
+        # Prepare the CSV file for response
+        output.seek(0)
+        csv_content = output.getvalue()
+        
+        # Create response with appropriate headers for file download
+        filename = f"MO_{mo_number}_details.csv"
+        response = Response(
+            content=csv_content,
+            media_type="text/csv"
+        )
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
+        
+    except HTTPException as he:
+        # Re-raise HTTP exceptions without modifying them
+        raise he
+    except Exception as e:
+        logger.error(f"Error in export_mo_detail_csv: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_details(f"Failed to export manufacturing order details: {str(e)}")
         )
