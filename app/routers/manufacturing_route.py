@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, status, Query, Depends, Request, Path
 from schemas.manufacturing_schema import (
     ManufacturingOrderSchema,
-    ManufacturingOrderListResponse
+    ManufacturingOrderListResponse,
+    ManufacturingOrderDetailSchema
 )
-from typing import List, Union, Optional
-from typing_extensions import Annotated
+from typing import List, Optional
+# from typing_extensions import Annotated
 from utils.auth import get_current_admin
 from utils.error import error_details
 from controllers.db_controllers.manufacturing_db_controller import (
@@ -75,4 +76,48 @@ async def get_all_mo(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_details("Failed to retrieve manufacturing orders: from route ")
+        )
+
+@router.get(
+    "/mo-details/{zid}/{mo_number}",
+    response_model=List[ManufacturingOrderDetailSchema],
+    summary="Get Manufacturing Order Details",
+    description="Retrieve detailed information for a specific manufacturing order"
+)
+async def get_mo_detail(
+    request: Request,
+    zid: int = Path(..., description="Company ID", ge=1),
+    mo_number: str = Path(..., description="Manufacturing Order Number"),
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get detailed information about a specific manufacturing order.
+    
+    - **zid**: Company ID (required)
+    - **mo_number**: Manufacturing Order Number (required)
+    
+    Returns a list of items used in the manufacturing order with quantities, rates, and costs.
+    """
+    try:
+        # Initialize manufacturing DB controller
+        manufacturing_controller = ManufacturingDBController(db)
+        
+        # Get manufacturing order details
+        mo_details = await manufacturing_controller.get_mo_detail(
+            zid=zid,
+            mo_number=mo_number
+        )
+        
+        # Return the raw list (no need to wrap in an object with "items" field)
+        return mo_details
+        
+    except HTTPException as he:
+        # Re-raise HTTP exceptions without modifying them
+        raise he
+    except Exception as e:
+        logger.error(f"Error in get_mo_detail: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_details(f"Failed to retrieve manufacturing order details: {str(e)}")
         )

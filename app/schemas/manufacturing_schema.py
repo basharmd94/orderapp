@@ -69,3 +69,40 @@ class ManufacturingOrderRequest(BaseModel):
                 "size": 10
             }
         }
+
+class ManufacturingOrderDetailSchema(BaseModel):
+    """Schema for Manufacturing Order Detail data."""
+    xitem: str
+    xdesc: Optional[str] = None
+    xunit: Optional[str] = None
+    raw_qty: float
+    rate: float
+    total_amt: float
+    cost_per_item: float
+    stock: float
+
+    class Config:
+        from_attributes = True
+
+# Use List directly as the response model for MO details
+# This will return a pure list without wrapping it in an "items" field
+class ManufacturingOrderDetailList(List[ManufacturingOrderDetailSchema]):
+    """Response schema for a list of Manufacturing Order Details."""
+    
+    # This class extends List[ManufacturingOrderDetailSchema] so it will serialize as a pure JSON array
+
+    class Config:
+        json_schema_extra = {
+            "example": [
+                {
+                    "xitem": "RAW-001",
+                    "xdesc": "Raw Material A",
+                    "xunit": "KG",
+                    "raw_qty": 10.5,
+                    "rate": 25.75,
+                    "total_amt": 270.38,
+                    "cost_per_item": 2.70,
+                    "stock": 450.0
+                }
+            ]
+        }

@@ -166,3 +166,98 @@ class ManufacturingDBController:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error getting manufacturing orders: from manufacturing_db_controller",
             )
+
+    async def get_mo_detail(self, zid: int, mo_number: str) -> List[Dict[str, Any]]:
+        """
+        Get detailed information about a specific manufacturing order.
+        
+        Args:
+            zid: Company ID
+            mo_number: Manufacturing Order Number
+            
+        Returns:
+            List of dictionaries containing MO detail items
+        """
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        try:
+            # Parameter dictionary for SQL query
+            params = {
+                "zid": zid,
+                "mo_number": mo_number
+            }
+
+            # Query to get MO details with raw materials, rates, and costs
+            query = text("""
+            WITH mo_query AS (
+                SELECT 
+                    moodt.xitem, 
+                    caitem.xdesc, 
+                    moodt.xqty AS raw_qty, 
+                    moodt.xrate AS rate, 
+                    ROUND(SUM(moodt.xqty * moodt.xrate), 2) AS total_amt,
+                    moord.xunit,
+                    ROUND(SUM(moodt.xqty * moodt.xrate) / NULLIF(moord.xqtyprd, 0), 2) AS cost_per_item,
+                    COALESCE((
+                        SELECT SUM(imtrn.xqty * imtrn.xsign)
+                        FROM imtrn
+                        WHERE imtrn.xitem = moodt.xitem AND imtrn.zid = CAST(:zid AS INTEGER)
+                    ), 0) AS stock
+                FROM 
+                    moord
+                    JOIN moodt ON moord.xmoord = moodt.xmoord
+                    JOIN caitem ON moodt.xitem = caitem.xitem
+                WHERE 
+                    moord.zid = CAST(:zid AS INTEGER)
+                    AND moodt.zid = CAST(:zid AS INTEGER)
+                    AND caitem.zid = CAST(:zid AS INTEGER)
+                    AND moord.xmoord = :mo_number
+                GROUP BY 
+                    moord.xdatemo, 
+                    moodt.xitem, 
+                    moodt.xqty, 
+                    moodt.xrate, 
+                    caitem.xdesc, 
+                    moord.xqtyprd, 
+                    moord.xunit
+            )
+            SELECT 
+                xitem, 
+                xdesc,
+                xunit, 
+                raw_qty, 
+                rate, 
+                total_amt, 
+                cost_per_item,
+                stock
+            FROM 
+                mo_query
+            ORDER BY
+                xitem
+            """)
+            
+            # Execute query
+            result = await self.db.execute(query, params)
+            rows = result.mappings().all()
+            
+            # Convert to list of dictionaries
+            mo_details = [dict(row) for row in rows]
+            
+            if not mo_details:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Manufacturing order '{mo_number}' not found for company {zid}"
+                )
+            
+            return mo_details
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions without modifying them
+            raise
+        except Exception as e:
+            logger.error(f"Error getting manufacturing order details: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error getting manufacturing order details: {str(e)}"
+            )
