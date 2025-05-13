@@ -432,8 +432,8 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=9500,
-        reload=True,
+        port=8500,
+        reload=False,
         workers=4,  # Increased to 4 workers with PostgreSQL max_connections=800
         log_level="info"
     )
