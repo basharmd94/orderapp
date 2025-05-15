@@ -1,8 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from models.manufacturing_model import Moord
+from schemas.manufacturing_schema import ManufacturingOrderSchema
 from typing import List, Dict, Any, Optional, Tuple
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 from logs import setup_logger
+import math
 
 logger = setup_logger()
 
@@ -11,7 +14,7 @@ class ManufacturingDBController:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        
+
     async def get_all_mo(
         self, zid: int, search_text: Optional[str] = None, page: int = 1, size: int = 10
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -31,81 +34,134 @@ class ManufacturingDBController:
             raise Exception("Database session not initialized.")
 
         try:
-            # Search pattern for SQL
-            search_pattern = f"%{search_text}%" if search_text else None
+            # Calculate offset
+            offset = (page - 1) * size
             
-            # Base query parameters
+            # Base query parameters with type hints
             params = {
                 "zid": zid,
-                "search_pattern": search_pattern
-            }
-            
-            # Simplified query to get all manufacturing orders
+                "limit": size,
+                "offset": offset,
+                "search_pattern": f"%{search_text}%" if search_text else None
+            }            # Completely revised query to eliminate duplicates - guaranteed one row per MO number
             query = text("""
+            WITH UniqueMOs AS (
+                -- First, get exactly one row per MO number (using DISTINCT ON)
+                SELECT DISTINCT ON (m.xmoord)
+                    m.zid,
+                    m.xdatemo,
+                    m.xmoord,
+                    m.xitem,
+                    m.xqtyprd,
+                    m.xunit,
+                    c.xdesc
+                FROM 
+                    moord m
+                    LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+                WHERE 
+                    m.zid = CAST(:zid AS INTEGER)
+                    AND (
+                        CAST(:search_pattern AS TEXT) IS NULL
+                        OR m.xmoord::text ILIKE CAST(:search_pattern AS TEXT)
+                        OR m.xitem::text ILIKE CAST(:search_pattern AS TEXT)
+                        OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
+                        OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
+                    )
+                ORDER BY 
+                    m.xmoord, m.xdatemo DESC
+            ),
+            RankedMOs AS (
+                -- Add row numbers for pagination
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (ORDER BY xdatemo DESC, xmoord DESC) AS rnum
+                FROM
+                    UniqueMOs
+            ),
+            PagedMOs AS (
+                -- Apply pagination
+                SELECT 
+                    *
+                FROM
+                    RankedMOs
+                WHERE
+                    rnum > :offset AND rnum <= (:offset + :limit)
+            ),
+            StockInfo AS (
+                -- Get stock information for items in our page
+                SELECT
+                    i.xitem,
+                    COALESCE(SUM(i.xqty * i.xsign), 0) AS stock
+                FROM
+                    imtrn i
+                WHERE
+                    i.zid = CAST(:zid AS INTEGER)
+                    AND i.xitem IN (SELECT xitem FROM PagedMOs)
+                GROUP BY
+                    i.xitem
+            ),
+            CostInfo AS (
+                -- Calculate costs for MOs in our page
+                SELECT
+                    d.xmoord,
+                    ROUND(SUM(d.xqty * d.xrate) / NULLIF(m.xqtyprd, 0), 2) AS mo_cost
+                FROM
+                    moord m
+                    JOIN moodt d ON m.xmoord = d.xmoord AND m.zid = d.zid
+                WHERE
+                    m.zid = CAST(:zid AS INTEGER)
+                    AND m.xmoord IN (SELECT xmoord FROM PagedMOs)
+                GROUP BY
+                    d.xmoord, m.xqtyprd
+            ),
+            LastMOInfo AS (
+                -- Find previous MO for each item
+                SELECT
+                    curr.xitem,
+                    prev.xqtyprd AS last_mo_qty,
+                    prev.xdatemo AS last_mo_date,
+                    prev.xmoord AS last_mo_number
+                FROM
+                    PagedMOs curr
+                    LEFT JOIN LATERAL (
+                        SELECT
+                            mo.xqtyprd,
+                            mo.xdatemo,
+                            mo.xmoord
+                        FROM
+                            moord mo
+                        WHERE
+                            mo.zid = CAST(:zid AS INTEGER)
+                            AND mo.xitem = curr.xitem
+                            AND mo.xdatemo < curr.xdatemo
+                        ORDER BY
+                            mo.xdatemo DESC, mo.xmoord DESC
+                        LIMIT 1
+                    ) prev ON true
+            )
+            -- Final result combining all data
             SELECT
-                m.zid,
-                m.xdatemo as xdate,
-                m.xmoord,
-                m.xitem,
-                c.xdesc,
-                m.xqtyprd,
-                m.xunit,
-                COALESCE(SUM(i.xqty * i.xsign), 0) AS stock,
-                (
-                    SELECT mo2.xqtyprd
-                    FROM moord mo2
-                    WHERE mo2.zid = m.zid
-                    AND mo2.xitem = m.xitem
-                    AND mo2.xdatemo < m.xdatemo
-                    ORDER BY mo2.xdatemo DESC
-                    LIMIT 1
-                ) AS last_mo_qty,
-                (
-                    SELECT mo2.xdatemo
-                    FROM moord mo2
-                    WHERE mo2.zid = m.zid
-                    AND mo2.xitem = m.xitem
-                    AND mo2.xdatemo < m.xdatemo
-                    ORDER BY mo2.xdatemo DESC
-                    LIMIT 1
-                ) AS last_mo_date,
-                (
-                    SELECT mo2.xmoord
-                    FROM moord mo2
-                    WHERE mo2.zid = m.zid
-                    AND mo2.xitem = m.xitem
-                    AND mo2.xdatemo < m.xdatemo
-                    ORDER BY mo2.xdatemo DESC
-                    LIMIT 1
-                ) AS last_mo_number,
-                ROUND(
-                    COALESCE((
-                        SELECT SUM(d.xqty * d.xrate)
-                        FROM moodt d
-                        WHERE d.xmoord = m.xmoord
-                        AND d.zid = m.zid
-                    ), 0) / NULLIF(m.xqtyprd, 0), 2
-                ) AS mo_cost
-            FROM 
-                moord m
-                LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
-                LEFT JOIN imtrn i ON m.xitem = i.xitem AND i.zid = m.zid
-            WHERE 
-                m.zid = CAST(:zid AS INTEGER)
-                AND (
-                    CAST(:search_pattern AS TEXT) IS NULL
-                    OR m.xmoord::text ILIKE CAST(:search_pattern AS TEXT)
-                    OR m.xitem::text ILIKE CAST(:search_pattern AS TEXT)
-                    OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
-                    OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
-                )
-            GROUP BY 
-                m.zid, m.xdatemo, m.xmoord, m.xitem, c.xdesc, m.xqtyprd, m.xunit
-            ORDER BY 
-                m.xdatemo DESC, m.xmoord DESC
+                p.zid,
+                p.xdatemo AS xdate,
+                p.xmoord,
+                p.xitem,
+                p.xdesc,
+                p.xqtyprd,
+                p.xunit,
+                COALESCE(s.stock, 0) AS stock,
+                l.last_mo_qty,
+                l.last_mo_date,
+                l.last_mo_number,
+                COALESCE(c.mo_cost, 0) AS mo_cost
+            FROM
+                PagedMOs p
+                LEFT JOIN StockInfo s ON p.xitem = s.xitem
+                LEFT JOIN CostInfo c ON p.xmoord = c.xmoord
+                LEFT JOIN LastMOInfo l ON p.xitem = l.xitem
+            ORDER BY
+                p.xdatemo DESC, p.xmoord DESC
             """)
-            
-            # Count query with matching search pattern
+              # Optimized count query with matching search pattern
             count_query = text("""
             SELECT 
                 COUNT(DISTINCT m.xmoord) as total
@@ -126,38 +182,11 @@ class ManufacturingDBController:
             # Execute queries
             result = await self.db.execute(query, params)
             rows = result.mappings().all()
-            
             count_result = await self.db.execute(count_query, params)
             total = count_result.scalar()
-              # Convert to list of dictionaries
-            all_manufacturing_orders = [dict(row) for row in rows]
             
-            # Use pure Python to deduplicate based on MO number
-            if all_manufacturing_orders:
-                # Create a dictionary to store unique MOs with xmoord as key
-                unique_mos = {}
-                
-                # Keep only the first occurrence of each MO number
-                for mo in all_manufacturing_orders:
-                    mo_number = mo['xmoord']
-                    if mo_number not in unique_mos:
-                        unique_mos[mo_number] = mo
-                
-                # Sort by date and MO number (descending)
-                sorted_mos = sorted(
-                    unique_mos.values(), 
-                    key=lambda x: (x['xdate'], x['xmoord']), 
-                    reverse=True
-                )
-                
-                # Apply pagination
-                offset = (page - 1) * size
-                end_idx = min(offset + size, len(sorted_mos))
-                
-                # Slice the sorted list to get the current page
-                manufacturing_orders = sorted_mos[offset:end_idx]
-            else:
-                manufacturing_orders = []
+            # Convert to list of dictionaries
+            manufacturing_orders = [dict(row) for row in rows]
             
             return manufacturing_orders, total
             
