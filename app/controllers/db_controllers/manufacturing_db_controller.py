@@ -37,16 +37,18 @@ class ManufacturingDBController:
             # Calculate offset
             offset = (page - 1) * size
             
-            # Base query parameters with type hints
+            # Base query parameters
             params = {
                 "zid": zid,
                 "limit": size,
                 "offset": offset,
                 "search_pattern": f"%{search_text}%" if search_text else None
-            }            # Completely revised query to eliminate duplicates - guaranteed one row per MO number
+            }
+
+            # Revised query to eliminate duplicates
             query = text("""
             WITH UniqueMOs AS (
-                -- First, get exactly one row per MO number (using DISTINCT ON)
+                -- Get exactly one row per MO number
                 SELECT DISTINCT ON (m.xmoord)
                     m.zid,
                     m.xdatemo,
@@ -115,29 +117,22 @@ class ManufacturingDBController:
                     d.xmoord, m.xqtyprd
             ),
             LastMOInfo AS (
-                -- Find previous MO for each item
-                SELECT
+                -- Find the most recent previous MO for each item, ensuring one result
+                SELECT DISTINCT ON (curr.xitem, curr.xmoord)
                     curr.xitem,
+                    curr.xmoord,
                     prev.xqtyprd AS last_mo_qty,
                     prev.xdatemo AS last_mo_date,
                     prev.xmoord AS last_mo_number
                 FROM
                     PagedMOs curr
-                    LEFT JOIN LATERAL (
-                        SELECT
-                            mo.xqtyprd,
-                            mo.xdatemo,
-                            mo.xmoord
-                        FROM
-                            moord mo
-                        WHERE
-                            mo.zid = CAST(:zid AS INTEGER)
-                            AND mo.xitem = curr.xitem
-                            AND mo.xdatemo < curr.xdatemo
-                        ORDER BY
-                            mo.xdatemo DESC, mo.xmoord DESC
-                        LIMIT 1
-                    ) prev ON true
+                    LEFT JOIN moord prev
+                        ON prev.zid = CAST(:zid AS INTEGER)
+                        AND prev.xitem = curr.xitem
+                        AND prev.xdatemo < curr.xdatemo
+                        AND prev.xmoord != curr.xmoord
+                ORDER BY
+                    curr.xitem, curr.xmoord, prev.xdatemo DESC, prev.xmoord DESC
             )
             -- Final result combining all data
             SELECT
@@ -157,11 +152,12 @@ class ManufacturingDBController:
                 PagedMOs p
                 LEFT JOIN StockInfo s ON p.xitem = s.xitem
                 LEFT JOIN CostInfo c ON p.xmoord = c.xmoord
-                LEFT JOIN LastMOInfo l ON p.xitem = l.xitem
+                LEFT JOIN LastMOInfo l ON p.xitem = l.xitem AND p.xmoord = l.xmoord
             ORDER BY
                 p.xdatemo DESC, p.xmoord DESC
             """)
-              # Optimized count query with matching search pattern
+
+            # Optimized count query with matching search pattern
             count_query = text("""
             SELECT 
                 COUNT(DISTINCT m.xmoord) as total
@@ -216,7 +212,9 @@ class ManufacturingDBController:
             params = {
                 "zid": zid,
                 "mo_number": mo_number
-            }            # Optimized query to get MO details with raw materials, rates, and costs
+            }
+
+            # Optimized query to get MO details with raw materials, rates, and costs
             query = text("""
             WITH item_stock AS (
                 SELECT 
@@ -254,7 +252,9 @@ class ManufacturingDBController:
                 AND moord.xmoord = :mo_number
             ORDER BY
                 moodt.xitem, moodt.xqty DESC
-            """)            # Execute query
+            """)
+            
+            # Execute query
             result = await self.db.execute(query, params)
             rows = result.mappings().all()
             
