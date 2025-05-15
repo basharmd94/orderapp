@@ -62,11 +62,10 @@ class ManufacturingDBController:
                         CAST(:search_pattern AS TEXT) IS NULL
                         OR m.xmoord::text ILIKE CAST(:search_pattern AS TEXT)
                         OR m.xitem::text ILIKE CAST(:search_pattern AS TEXT)
-                        OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
-                        OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
+                        OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)                        OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
                     )
                 ORDER BY 
-                    m.xdatemo DESC
+                    m.xdatemo DESC, m.xmoord DESC
             ),
             MO_With_Stock AS (
                 SELECT
@@ -130,13 +129,12 @@ class ManufacturingDBController:
                     ) AS last_mo_number
                 FROM
                     MO_With_Stock m
-            ),
-            -- Add row numbers for pagination
+            ),            -- Add row numbers for pagination
             NumberedMO AS (
                 SELECT
                     m.*,
                     mc.mo_cost,
-                    ROW_NUMBER() OVER (ORDER BY m.xdatemo DESC) as row_num
+                    ROW_NUMBER() OVER (ORDER BY m.xdatemo DESC, m.xmoord DESC) as row_num
                 FROM
                     LastMO m
                     LEFT JOIN MO_Costs mc ON m.xmoord = mc.xmoord
@@ -153,13 +151,12 @@ class ManufacturingDBController:
                 last_mo_qty,
                 last_mo_date,
                 last_mo_number,
-                mo_cost
-            FROM 
+                mo_cost            FROM 
                 NumberedMO
             WHERE
                 row_num > :offset AND row_num <= (:offset + :limit)
             ORDER BY 
-                xdate DESC
+                xdate DESC, xmoord DESC
             """)
             
             # Count query with matching search pattern
@@ -260,11 +257,10 @@ class ManufacturingDBController:
                 rate, 
                 total_amt, 
                 cost_per_item,
-                stock
-            FROM 
+                stock            FROM 
                 mo_query
             ORDER BY
-                xitem
+                xitem, raw_qty DESC
             """)
             
             # Execute query
