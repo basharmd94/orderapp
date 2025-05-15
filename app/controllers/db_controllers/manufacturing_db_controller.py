@@ -1,11 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from models.manufacturing_model import Moord
-from schemas.manufacturing_schema import ManufacturingOrderSchema
 from typing import List, Dict, Any, Optional, Tuple
-from fastapi import Depends, HTTPException, status
+from fastapi import HTTPException, status
 from logs import setup_logger
-import math
 
 logger = setup_logger()
 
@@ -43,12 +40,18 @@ class ManufacturingDBController:
                 "limit": size,
                 "offset": offset,
                 "search_pattern": f"%{search_text}%" if search_text else None
-            }            # Optimized query with explicit type casting and ILIKE for search
+            }            # Completely revised query to eliminate duplicates - guaranteed one row per MO number
             query = text("""
-            WITH UniqueOrders AS (
-                SELECT 
+            WITH UniqueMOs AS (
+                -- First, get exactly one row per MO number (using DISTINCT ON)
+                SELECT DISTINCT ON (m.xmoord)
+                    m.zid,
+                    m.xdatemo,
                     m.xmoord,
-                    MAX(m.xdatemo) as max_date
+                    m.xitem,
+                    m.xqtyprd,
+                    m.xunit,
+                    c.xdesc
                 FROM 
                     moord m
                     LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
@@ -61,115 +64,99 @@ class ManufacturingDBController:
                         OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
                         OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
                     )
-                GROUP BY
-                    m.xmoord
+                ORDER BY 
+                    m.xmoord, m.xdatemo DESC
             ),
-            OrderDetails AS (
-                SELECT DISTINCT ON (m.xmoord)
-                    m.zid,
-                    m.xdatemo,
-                    m.xmoord,
-                    m.xitem,
-                    m.xqtyprd,
-                    m.xunit,
-                    c.xdesc
+            RankedMOs AS (
+                -- Add row numbers for pagination
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (ORDER BY xdatemo DESC, xmoord DESC) AS rnum
+                FROM
+                    UniqueMOs
+            ),
+            PagedMOs AS (
+                -- Apply pagination
+                SELECT 
+                    *
+                FROM
+                    RankedMOs
+                WHERE
+                    rnum > :offset AND rnum <= (:offset + :limit)
+            ),
+            StockInfo AS (
+                -- Get stock information for items in our page
+                SELECT
+                    i.xitem,
+                    COALESCE(SUM(i.xqty * i.xsign), 0) AS stock
+                FROM
+                    imtrn i
+                WHERE
+                    i.zid = CAST(:zid AS INTEGER)
+                    AND i.xitem IN (SELECT xitem FROM PagedMOs)
+                GROUP BY
+                    i.xitem
+            ),
+            CostInfo AS (
+                -- Calculate costs for MOs in our page
+                SELECT
+                    d.xmoord,
+                    ROUND(SUM(d.xqty * d.xrate) / NULLIF(m.xqtyprd, 0), 2) AS mo_cost
                 FROM
                     moord m
-                    JOIN UniqueOrders uo ON m.xmoord = uo.xmoord AND m.xdatemo = uo.max_date
-                    LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+                    JOIN moodt d ON m.xmoord = d.xmoord AND m.zid = d.zid
                 WHERE
                     m.zid = CAST(:zid AS INTEGER)
-                ORDER BY 
-                    m.xmoord, m.xitem
-            ),
-            PaginatedOrders AS (
-                SELECT 
-                    *,
-                    ROW_NUMBER() OVER (ORDER BY xdatemo DESC, xmoord DESC) as rn
-                FROM 
-                    OrderDetails
-                ORDER BY
-                    xdatemo DESC, xmoord DESC
-            ),
-            FilteredMO AS (
-                SELECT
-                    zid,
-                    xdatemo,
-                    xmoord,
-                    xitem,
-                    xqtyprd,
-                    xunit,
-                    xdesc
-                FROM
-                    PaginatedOrders
-                WHERE
-                    rn > :offset AND rn <= (:offset + :limit)
-            ),
-            MO_Stock AS (
-                SELECT
-                    m.xitem,
-                    COALESCE(SUM(i.xqty * i.xsign), 0) AS stock
-                FROM 
-                    FilteredMO m
-                    LEFT JOIN imtrn i ON m.xitem = i.xitem AND i.zid = CAST(:zid AS INTEGER)
-                GROUP BY 
-                    m.xitem
-            ),
-            MO_Costs AS (
-                SELECT
-                    mo.xmoord,
-                    ROUND(COALESCE(SUM(odt.xqty * odt.xrate), 0) / NULLIF(mo.xqtyprd, 0), 2) AS mo_cost
-                FROM 
-                    FilteredMO fm
-                    JOIN moord mo ON fm.xmoord = mo.xmoord AND mo.zid = CAST(:zid AS INTEGER)
-                    LEFT JOIN moodt odt ON mo.xmoord = odt.xmoord AND odt.zid = CAST(:zid AS INTEGER)
-                GROUP BY 
-                    mo.xmoord, 
-                    mo.xqtyprd
+                    AND m.xmoord IN (SELECT xmoord FROM PagedMOs)
+                GROUP BY
+                    d.xmoord, m.xqtyprd
             ),
             LastMOInfo AS (
+                -- Find previous MO for each item
                 SELECT
                     curr.xitem,
                     prev.xqtyprd AS last_mo_qty,
                     prev.xdatemo AS last_mo_date,
                     prev.xmoord AS last_mo_number
-                FROM 
-                    FilteredMO curr
+                FROM
+                    PagedMOs curr
                     LEFT JOIN LATERAL (
-                        SELECT 
+                        SELECT
                             mo.xqtyprd,
                             mo.xdatemo,
                             mo.xmoord
-                        FROM 
+                        FROM
                             moord mo
-                        WHERE 
+                        WHERE
                             mo.zid = CAST(:zid AS INTEGER)
                             AND mo.xitem = curr.xitem
                             AND mo.xdatemo < curr.xdatemo
-                        ORDER BY 
-                            mo.xdatemo DESC
+                        ORDER BY
+                            mo.xdatemo DESC, mo.xmoord DESC
                         LIMIT 1
                     ) prev ON true
             )
-            SELECT 
-                fm.zid,
-                fm.xdatemo as xdate,
-                fm.xmoord,
-                fm.xitem,
-                fm.xdesc,
-                fm.xqtyprd,
-                fm.xunit,
-                COALESCE(ms.stock, 0) AS stock,
-                lm.last_mo_qty,
-                lm.last_mo_date,
-                lm.last_mo_number,
-                COALESCE(mc.mo_cost, 0) AS mo_cost
-            FROM 
-                FilteredMO fm
-                LEFT JOIN MO_Stock ms ON fm.xitem = ms.xitem
-                LEFT JOIN LastMOInfo lm ON fm.xitem = lm.xitem
-                LEFT JOIN MO_Costs mc ON fm.xmoord = mc.xmoord            ORDER BY 
-                fm.xdatemo DESC, fm.xmoord DESC
+            -- Final result combining all data
+            SELECT
+                p.zid,
+                p.xdatemo AS xdate,
+                p.xmoord,
+                p.xitem,
+                p.xdesc,
+                p.xqtyprd,
+                p.xunit,
+                COALESCE(s.stock, 0) AS stock,
+                l.last_mo_qty,
+                l.last_mo_date,
+                l.last_mo_number,
+                COALESCE(c.mo_cost, 0) AS mo_cost
+            FROM
+                PagedMOs p
+                LEFT JOIN StockInfo s ON p.xitem = s.xitem
+                LEFT JOIN CostInfo c ON p.xmoord = c.xmoord
+                LEFT JOIN LastMOInfo l ON p.xitem = l.xitem
+            ORDER BY
+                p.xdatemo DESC, p.xmoord DESC
             """)
               # Optimized count query with matching search pattern
             count_query = text("""
