@@ -44,16 +44,11 @@ class ManufacturingDBController:
                 "offset": offset,
                 "search_pattern": f"%{search_text}%" if search_text else None
             }            # Optimized query with explicit type casting and ILIKE for search
-            query = text("""            WITH AllFilteredMO AS (
-                SELECT DISTINCT
-                    m.zid,
-                    m.xdatemo, 
-                    m.xmoord, 
-                    m.xitem, 
-                    m.xqtyprd, 
-                    m.xunit,
-                    c.xdesc,
-                    ROW_NUMBER() OVER (ORDER BY m.xdatemo DESC, m.xmoord DESC) as rn
+            query = text("""
+            WITH UniqueOrders AS (
+                SELECT 
+                    m.xmoord,
+                    MAX(m.xdatemo) as xdatemo
                 FROM 
                     moord m
                     LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
@@ -66,20 +61,42 @@ class ManufacturingDBController:
                         OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
                         OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
                     )
+                GROUP BY
+                    m.xmoord
+            ),
+            RankedOrders AS (
+                SELECT
+                    uo.xmoord,
+                    uo.xdatemo,
+                    ROW_NUMBER() OVER (ORDER BY uo.xdatemo DESC, uo.xmoord DESC) as rn
+                FROM
+                    UniqueOrders uo
+            ),
+            PaginatedOrders AS (
+                SELECT
+                    ro.xmoord,
+                    ro.xdatemo
+                FROM
+                    RankedOrders ro
+                WHERE
+                    ro.rn > :offset AND ro.rn <= (:offset + :limit)
             ),
             FilteredMO AS (
-                SELECT 
-                    zid,
-                    xdatemo,
-                    xmoord,
-                    xitem,
-                    xqtyprd,
-                    xunit,
-                    xdesc
-                FROM 
-                    AllFilteredMO
-                WHERE 
-                    rn > :offset AND rn <= (:offset + :limit)
+                SELECT
+                    m.zid,
+                    m.xdatemo,
+                    m.xmoord,
+                    m.xitem,
+                    m.xqtyprd,
+                    m.xunit,
+                    c.xdesc
+                FROM
+                    moord m
+                    JOIN PaginatedOrders po ON m.xmoord = po.xmoord
+                    LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+                WHERE
+                    m.zid = CAST(:zid AS INTEGER)
+                    AND m.xdatemo = po.xdatemo
             ),
             MO_Stock AS (
                 SELECT
@@ -147,8 +164,7 @@ class ManufacturingDBController:
                 LEFT JOIN MO_Costs mc ON fm.xmoord = mc.xmoord            ORDER BY 
                 fm.xdatemo DESC, fm.xmoord DESC
             """)
-            
-            # Optimized count query with matching search pattern
+              # Optimized count query with matching search pattern
             count_query = text("""
             SELECT 
                 COUNT(DISTINCT m.xmoord) as total
