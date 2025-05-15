@@ -44,8 +44,7 @@ class ManufacturingDBController:
                 "offset": offset,
                 "search_pattern": f"%{search_text}%" if search_text else None
             }            # Optimized query with explicit type casting and ILIKE for search
-            query = text("""
-            WITH FilteredMO AS (
+            query = text("""            WITH AllFilteredMO AS (
                 SELECT DISTINCT
                     m.zid,
                     m.xdatemo, 
@@ -53,7 +52,8 @@ class ManufacturingDBController:
                     m.xitem, 
                     m.xqtyprd, 
                     m.xunit,
-                    c.xdesc
+                    c.xdesc,
+                    ROW_NUMBER() OVER (ORDER BY m.xdatemo DESC, m.xmoord DESC) as rn
                 FROM 
                     moord m
                     LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
@@ -66,9 +66,20 @@ class ManufacturingDBController:
                         OR c.xdesc::text ILIKE CAST(:search_pattern AS TEXT)
                         OR TO_CHAR(m.xdatemo, 'YYYY-MM-DD') ILIKE CAST(:search_pattern AS TEXT)
                     )
-                ORDER BY 
-                    m.xdatemo DESC, m.xmoord DESC
-                LIMIT (:limit + 1) OFFSET :offset
+            ),
+            FilteredMO AS (
+                SELECT 
+                    zid,
+                    xdatemo,
+                    xmoord,
+                    xitem,
+                    xqtyprd,
+                    xunit,
+                    xdesc
+                FROM 
+                    AllFilteredMO
+                WHERE 
+                    rn > :offset AND rn <= (:offset + :limit)
             ),
             MO_Stock AS (
                 SELECT
@@ -133,11 +144,11 @@ class ManufacturingDBController:
                 FilteredMO fm
                 LEFT JOIN MO_Stock ms ON fm.xitem = ms.xitem
                 LEFT JOIN LastMOInfo lm ON fm.xitem = lm.xitem
-                LEFT JOIN MO_Costs mc ON fm.xmoord = mc.xmoord
-            ORDER BY 
+                LEFT JOIN MO_Costs mc ON fm.xmoord = mc.xmoord            ORDER BY 
                 fm.xdatemo DESC, fm.xmoord DESC
             """)
-              # Optimized count query with matching search pattern
+            
+            # Optimized count query with matching search pattern
             count_query = text("""
             SELECT 
                 COUNT(DISTINCT m.xmoord) as total
@@ -158,10 +169,10 @@ class ManufacturingDBController:
             # Execute queries
             result = await self.db.execute(query, params)
             rows = result.mappings().all()
-            
             count_result = await self.db.execute(count_query, params)
             total = count_result.scalar()
-              # Convert to list of dictionaries
+            
+            # Convert to list of dictionaries
             manufacturing_orders = [dict(row) for row in rows]
             
             return manufacturing_orders, total
@@ -230,8 +241,7 @@ class ManufacturingDBController:
                 AND moord.xmoord = :mo_number
             ORDER BY
                 moodt.xitem, moodt.xqty DESC
-            """)
-              # Execute query
+            """)            # Execute query
             result = await self.db.execute(query, params)
             rows = result.mappings().all()
             
