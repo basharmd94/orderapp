@@ -48,7 +48,7 @@ class ManufacturingDBController:
             WITH UniqueOrders AS (
                 SELECT 
                     m.xmoord,
-                    MAX(m.xdatemo) as xdatemo
+                    MAX(m.xdatemo) as max_date
                 FROM 
                     moord m
                     LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
@@ -64,25 +64,8 @@ class ManufacturingDBController:
                 GROUP BY
                     m.xmoord
             ),
-            RankedOrders AS (
-                SELECT
-                    uo.xmoord,
-                    uo.xdatemo,
-                    ROW_NUMBER() OVER (ORDER BY uo.xdatemo DESC, uo.xmoord DESC) as rn
-                FROM
-                    UniqueOrders uo
-            ),
-            PaginatedOrders AS (
-                SELECT
-                    ro.xmoord,
-                    ro.xdatemo
-                FROM
-                    RankedOrders ro
-                WHERE
-                    ro.rn > :offset AND ro.rn <= (:offset + :limit)
-            ),
-            FilteredMO AS (
-                SELECT
+            OrderDetails AS (
+                SELECT DISTINCT ON (m.xmoord)
                     m.zid,
                     m.xdatemo,
                     m.xmoord,
@@ -92,11 +75,35 @@ class ManufacturingDBController:
                     c.xdesc
                 FROM
                     moord m
-                    JOIN PaginatedOrders po ON m.xmoord = po.xmoord
+                    JOIN UniqueOrders uo ON m.xmoord = uo.xmoord AND m.xdatemo = uo.max_date
                     LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
                 WHERE
                     m.zid = CAST(:zid AS INTEGER)
-                    AND m.xdatemo = po.xdatemo
+                ORDER BY 
+                    m.xmoord, m.xitem
+            ),
+            PaginatedOrders AS (
+                SELECT 
+                    *,
+                    ROW_NUMBER() OVER (ORDER BY xdatemo DESC, xmoord DESC) as rn
+                FROM 
+                    OrderDetails
+                ORDER BY
+                    xdatemo DESC, xmoord DESC
+            ),
+            FilteredMO AS (
+                SELECT
+                    zid,
+                    xdatemo,
+                    xmoord,
+                    xitem,
+                    xqtyprd,
+                    xunit,
+                    xdesc
+                FROM
+                    PaginatedOrders
+                WHERE
+                    rn > :offset AND rn <= (:offset + :limit)
             ),
             MO_Stock AS (
                 SELECT
