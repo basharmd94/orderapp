@@ -43,11 +43,9 @@ class ManufacturingDBController:
                 "limit": size,
                 "offset": offset,
                 "search_pattern": f"%{search_text}%" if search_text else None
-            }
-
-            # Main query with explicit type casting and ILIKE for search
+            }            # Main query with explicit type casting and ILIKE for search
             query = text("""
-            WITH LastTenMO AS (
+            WITH FilteredMO AS (
                 SELECT DISTINCT
                     m.zid,
                     m.xdatemo, 
@@ -69,7 +67,23 @@ class ManufacturingDBController:
                     )
                 ORDER BY 
                     m.xdatemo DESC
-                LIMIT :limit OFFSET :offset
+            ),
+            MO_With_Stock AS (
+                SELECT
+                    m.zid,
+                    m.xdatemo,
+                    m.xmoord,
+                    m.xitem,
+                    m.xqtyprd,
+                    m.xunit,
+                    c.xdesc,
+                    COALESCE(SUM(i.xqty * i.xsign), 0) AS stock
+                FROM 
+                    FilteredMO m
+                    LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
+                    LEFT JOIN imtrn i ON m.xitem = i.xitem AND i.zid = m.zid
+                GROUP BY 
+                    m.zid, m.xdatemo, m.xmoord, m.xitem, c.xdesc, m.xqtyprd, m.xunit
             ),
             MO_Costs AS (
                 SELECT
@@ -83,53 +97,69 @@ class ManufacturingDBController:
                 GROUP BY 
                     moord.xmoord, 
                     moord.xqtyprd
+            ),
+            LastMO AS (
+                SELECT
+                    m.*,
+                    (
+                        SELECT mo2.xqtyprd
+                        FROM moord mo2
+                        WHERE mo2.zid = m.zid
+                        AND mo2.xitem = m.xitem
+                        AND mo2.xdatemo < m.xdatemo
+                        ORDER BY mo2.xdatemo DESC
+                        LIMIT 1
+                    ) AS last_mo_qty,
+                    (
+                        SELECT mo2.xdatemo
+                        FROM moord mo2
+                        WHERE mo2.zid = m.zid
+                        AND mo2.xitem = m.xitem
+                        AND mo2.xdatemo < m.xdatemo
+                        ORDER BY mo2.xdatemo DESC
+                        LIMIT 1
+                    ) AS last_mo_date,
+                    (
+                        SELECT mo2.xmoord
+                        FROM moord mo2
+                        WHERE mo2.zid = m.zid
+                        AND mo2.xitem = m.xitem
+                        AND mo2.xdatemo < m.xdatemo
+                        ORDER BY mo2.xdatemo DESC
+                        LIMIT 1
+                    ) AS last_mo_number
+                FROM
+                    MO_With_Stock m
+            ),
+            -- Add row numbers for pagination
+            NumberedMO AS (
+                SELECT
+                    m.*,
+                    mc.mo_cost,
+                    ROW_NUMBER() OVER (ORDER BY m.xdatemo DESC) as row_num
+                FROM
+                    LastMO m
+                    LEFT JOIN MO_Costs mc ON m.xmoord = mc.xmoord
             )
             SELECT 
-                m.zid,
-                m.xdatemo as xdate,
-                m.xmoord,
-                m.xitem,
-                c.xdesc,
-                m.xqtyprd,
-                m.xunit,
-                COALESCE(SUM(i.xqty * i.xsign), 0) AS stock,
-                (
-                    SELECT mo2.xqtyprd
-                    FROM moord mo2
-                    WHERE mo2.zid = m.zid
-                    AND mo2.xitem = m.xitem
-                    AND mo2.xdatemo < m.xdatemo
-                    ORDER BY mo2.xdatemo DESC
-                    LIMIT 1
-                ) AS last_mo_qty,
-                (
-                    SELECT mo2.xdatemo
-                    FROM moord mo2
-                    WHERE mo2.zid = m.zid
-                    AND mo2.xitem = m.xitem
-                    AND mo2.xdatemo < m.xdatemo
-                    ORDER BY mo2.xdatemo DESC
-                    LIMIT 1
-                ) AS last_mo_date,
-                (
-                    SELECT mo2.xmoord
-                    FROM moord mo2
-                    WHERE mo2.zid = m.zid
-                    AND mo2.xitem = m.xitem
-                    AND mo2.xdatemo < m.xdatemo
-                    ORDER BY mo2.xdatemo DESC
-                    LIMIT 1
-                ) AS last_mo_number,
-                mc.mo_cost
+                zid,
+                xdatemo as xdate,
+                xmoord,
+                xitem,
+                xdesc,
+                xqtyprd,
+                xunit,
+                stock,
+                last_mo_qty,
+                last_mo_date,
+                last_mo_number,
+                mo_cost
             FROM 
-                LastTenMO m
-                LEFT JOIN caitem c ON m.xitem = c.xitem AND c.zid = m.zid
-                LEFT JOIN imtrn i ON m.xitem = i.xitem AND i.zid = m.zid
-                LEFT JOIN MO_Costs mc ON m.xmoord = mc.xmoord
-            GROUP BY 
-                m.zid, m.xdatemo, m.xmoord, m.xitem, c.xdesc, m.xqtyprd, m.xunit, mc.mo_cost
+                NumberedMO
+            WHERE
+                row_num > :offset AND row_num <= (:offset + :limit)
             ORDER BY 
-                m.xdatemo DESC
+                xdate DESC
             """)
             
             # Count query with matching search pattern
