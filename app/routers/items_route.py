@@ -30,7 +30,7 @@ async def get_all_items_sync(
     items = await items_db_controller.get_all_items_sync(
         item_name=item_name, limit=limit, offset=offset
     )
-    if not items:
+    if not items: 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=error_details("No items found"),

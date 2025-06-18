@@ -99,64 +99,55 @@ orderapp/
   - Fields: zid, item_id, item_name, item_group, std_price, stock, min_disc_qty, disc_amt, xbin
   - SQL Definition:
     ```sql
-    DROP VIEW IF EXISTS final_items_view;    CREATE MATERIALIZED VIEW final_items_view AS
-    SELECT
-        ci.zid,
-        ci.xitem AS item_id,
-        ci.xdesc AS item_name,
-        ci.xgitem AS item_group,
-        ci.xstdprice AS std_price,
-        ci.xunitstk AS stock_unit,
-        ci.xbin AS xbin,
-        ts.stock,
-        COALESCE(MIN(op.xqty), 0) AS min_disc_qty,
-        COALESCE(MIN(op.xdisc), 0) AS disc_amt
-    FROM
-        caitem ci
-    JOIN
-        (
-            SELECT
-                im.zid,
-                im.xitem,
-                SUM(im.xqty * im.xsign) AS stock
-            FROM
-                imtrn im
-            GROUP BY
-                im.zid, im.xitem
-        ) ts
-    ON
-        ci.xitem = ts.xitem
-        AND ci.zid = ts.zid
-    LEFT JOIN
-        opspprc op
-    ON
-        ci.xitem = op.xpricecat
-        AND ci.zid = op.zid
-    WHERE
-        ts.stock > 0
-        AND ci.xgitem NOT IN (
-            'Stationary', 'Administrative Item', 'Advertisement Item Marketing',
-            'Cleaning Item', 'Maintenance Item', 'Marketing & Advertisement',
-            'Packaging Item', 'Zepto Raw Metrial', 'RAW Material PL',
-            'RAW Material CH', 'Packaging Item CH', 'RAW Material PR',
-            'Import Item', 'Raw Material TH', 'RAW Material ST',
-            'RAW Material Packaging', 'Invalid & old Item', 'Food Item',
-            'RAW Material GPK', 'RAW Material GCC', 'RAW Material Plastic',
-            'IT', 'Logistical Item', 'Packaging Item (P)', 'Manufacturing Item',
-            'Packaging Item PL'
-        )
-        AND ci.zid NOT IN (100002, 100003, 100004, 100006, 100007, 100008, 100009)    GROUP BY
-        ci.zid,
-        ci.xitem,
-        ci.xdesc,
-        ci.xgitem,
-        ci.xstdprice,
-        ci.xunitstk,
-        ci.xbin,
-        ts.stock
-    ORDER BY
-        ci.zid,
-        ci.xitem;
+   DROP MATERIALIZED VIEW IF EXISTS final_items_view;
+
+  CREATE MATERIALIZED VIEW final_items_view AS
+  SELECT
+      ci.zid,
+      ci.xitem AS item_id,
+      ci.xdesc AS item_name,
+      ci.xgitem AS item_group,
+      ci.xstdprice AS std_price,
+      ci.xunitstk AS stock_unit,
+      ci.xbin AS xbin,
+      ts.stock,
+      COALESCE(MIN(op.xqty), 0) AS min_disc_qty,
+      COALESCE(MIN(op.xdisc), 0) AS disc_amt
+  FROM
+      caitem ci
+  JOIN
+      (
+          SELECT
+              im.zid,
+              im.xitem,
+              im.xwh,
+              SUM(im.xqty * im.xsign) AS stock
+          FROM
+              imtrn im
+          WHERE
+              (im.zid = 100001 AND im.xwh = 'HMBR -Main Store (4th Floor)')
+              OR (im.zid = 100000 AND im.xwh = 'Sales Warehouse GI')
+              OR (im.zid = 100005 AND im.xwh = 'Sales Warehouse(Zepto)')
+          GROUP BY
+              im.zid, im.xitem, im.xwh
+      ) ts
+  ON
+      ci.xitem = ts.xitem
+      AND ci.zid = ts.zid
+  LEFT JOIN
+      opspprc op
+  ON
+      ci.xitem = op.xpricecat
+      AND ci.zid = op.zid
+  GROUP BY
+      ci.zid,
+      ci.xitem,
+      ci.xdesc,
+      ci.xgitem,
+      ci.xstdprice,
+      ci.xunitstk,
+      ci.xbin,
+      ts.stock;
     ```
   - Refresh Command:
     ```sql

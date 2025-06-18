@@ -18,19 +18,41 @@ class ItemsDBController:
 
     async def get_all_items(
         self, zid: int, item_name: Union[str, None], limit: int, offset: int
-    ) -> List[ItemsSchema]:
+        ) -> List[ItemsSchema]:
+        """       
+         Retrieve all items for a specific business ID (zid) with optional filtering and pagination.
+        Args:
+            zid: The business ID to filter items
+            item_name: Optional item name or ID to filter results
+            limit: Maximum number of items to return
+            offset: Number of items to skip for pagination
+        Returns:
+            A list of ItemsSchema instances containing item details
+        """
         if self.db is None:
             raise Exception("Database session not initialized.")
 
-        # Define the CTE for transaction summary
+        # Define the warehouse condition dynamically based on zid
+        xwh_condition = (
+            (Imtrn.zid == 100001) & (Imtrn.xwh == 'HMBR -Main Store (4th Floor)') |
+            (Imtrn.zid == 100000) & (Imtrn.xwh == 'Sales Warehouse GI') |
+            (Imtrn.zid == 100005) & (Imtrn.xwh == 'Sales Warehouse(Zepto)')
+        )
+
+        # Define the CTE for transaction summary with xwh filtering
         transaction_summary_query = (
-            select(Imtrn.xitem, func.sum(Imtrn.xqty * Imtrn.xsign).label("stock"))
-            .filter(Imtrn.zid == zid)
-            .group_by(Imtrn.xitem)
+            select(
+                Imtrn.zid,
+                Imtrn.xitem,
+                func.sum(Imtrn.xqty * Imtrn.xsign).label("stock")
+            )
+            .filter(xwh_condition)
+            .group_by(Imtrn.zid, Imtrn.xitem)
         )
 
         transaction_summary = transaction_summary_query.cte("transaction_summary")
-          # Build base query
+
+        # Build base query
         query = (
             select(
                 Caitem.zid.label("zid"),
@@ -44,29 +66,13 @@ class ItemsDBController:
                 func.coalesce(func.min(Opspprc.xqty), 0).label("min_disc_qty"),
                 func.coalesce(func.min(Opspprc.xdisc), 0).label("disc_amt"),
             )
-            .join(transaction_summary, Caitem.xitem == transaction_summary.c.xitem)
-            .outerjoin(
-                Opspprc, and_(Caitem.xitem == Opspprc.xpricecat, Opspprc.zid == zid)
-            )
-            .filter(
-                Caitem.zid == zid,
-                # transaction_summary.c.stock > 0,
-                Caitem.xgitem.notin_(
-                    [
-                        "Stationary",
-                        "Administrative Item",
-                        "Advertisement Item Marketing",
-                        "Cleaning Item",
-                        "Maintenance Item",
-                        "Marketing & Advertisement",
-                        "Packaging Item",
-                        "Zepto Raw Metrial",
-                        "RAW Material PL",
-                        "RAW Material CH"
-                    ]
-                ),
-            )
-            
+            .join(transaction_summary, 
+                (Caitem.xitem == transaction_summary.c.xitem) & 
+                (Caitem.zid == transaction_summary.c.zid))
+            .outerjoin(Opspprc, 
+                    (Caitem.xitem == Opspprc.xpricecat) & 
+                    (Caitem.zid == Opspprc.zid))
+            .filter(Caitem.zid == zid)
         )
 
         # Add item search filter only if item_name is provided
@@ -77,7 +83,8 @@ class ItemsDBController:
                     Caitem.xitem.ilike(f"%{item_name}%"),
                     Caitem.xgitem.ilike(f"%{item_name}%"),
                 )
-            )        # Add group by and ordering
+            )
+        # Group by, order by, limit, offset
         query = (
             query.group_by(
                 Caitem.zid,
@@ -86,17 +93,18 @@ class ItemsDBController:
                 Caitem.xgitem,
                 Caitem.xstdprice,
                 Caitem.xunitstk,
-                Caitem.xbin,  # Added xbin for product image
+                Caitem.xbin,
                 transaction_summary.c.stock,
             )
             .order_by(Caitem.xitem)
-            .limit(limit)  # Dynamic limit
-            .offset(offset)  # Dynamic offset
+            .limit(limit)
+            .offset(offset)
         )
-        # Execute the main query asynchronously
+
+        # Execute asynchronously
         result = await self.db.execute(query)
 
-        # Convert the query results to a list of ItemsSchema instances
+        # Map results to schema
         items = [
             ItemsSchema(
                 zid=item.zid,
@@ -108,16 +116,17 @@ class ItemsDBController:
                 min_disc_qty=item.min_disc_qty,
                 disc_amt=item.disc_amt,
             )
-            for item in result.fetchall()  # Use fetchall to get the full result
+            for item in result.fetchall()
         ]
-        return items
 
+        return items
     
     async def get_all_items_sync(
         self, item_name: Union[str, None], limit: int, offset: int
     ) -> List[ItemsSchema]:
         if self.db is None:
-            raise Exception("Database session not initialized.")        # Start the query to select data from the view
+            raise Exception("Database session not initialized.")        
+        # Start the query to select data from the view
         query = select(
             # Select all columns from the final_items_view (since the view already has them)
             FinalItemsView.zid,
