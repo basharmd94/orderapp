@@ -6,7 +6,8 @@ from schemas.customers_schema import (
     SalesmanAreaUpdateRequest,
     SalesmanUpdateResponse,
     AreaByZidRequest,
-    AreaResponse
+    AreaResponse,
+    CustomerOfferSchema
 )
 from schemas.user_schema import UserRegistrationSchema
 from typing import List, Union
@@ -23,6 +24,41 @@ from database import get_db
 router = APIRouter()
 logger = setup_logger()
 
+
+
+# Route to get a customer by ID and business ID
+@router.get("/single-customer/{zid}/{customer_id}", response_model=CustomersSchema)
+async def get_customer_by_id(
+    request: Request,
+    zid: int,
+    customer_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user),
+):
+    customers_db_controller = CustomersDBController(db)
+
+    try:
+        customer = await customers_db_controller.get_customer_by_id(zid, customer_id, current_user)
+        if not customer:
+            logger.info(f"Customer with ID {customer_id} not found in business {zid}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Customer with ID {customer_id} not found in business {zid}"
+            )
+        return customer
+
+    except ValueError as e:
+        logger.error(f"Error getting Customer by ID: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException as e:
+        # Re-raise HTTP exceptions to preserve status code
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error in get_customer_by_id: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while retrieving the customer"
+        )
 
 @router.get("/all/{zid}", response_model=List[CustomersSchema])
 async def get_all_customers(
@@ -190,4 +226,40 @@ async def get_areas_by_zid(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving areas"
+        )
+
+# Offer create
+@router.post("/offer-create", status_code=status.HTTP_201_CREATED)
+async def create_offer(
+    request: CustomerOfferSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user)
+):
+    """
+    Create a new offer for bulk customers according to segmentation (0.0–0.1), 
+    such as Critical Watch, High Risk, etc., in a business.
+
+    Args:
+        request (CustomerOfferSchema): The offer details to be created.
+        db (AsyncSession): The database session to use.
+        current_user (UserRegistrationSchema): The user creating the offer.
+
+    Returns:
+        The created offer object.
+
+    Raises:
+        HTTPException: If there is an error creating the offer.
+    """
+
+    try:
+        customers_controller = CustomersDBController(db)
+        result = await customers_controller.create_offer(request, current_user)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating offer: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error creating offer"
         )

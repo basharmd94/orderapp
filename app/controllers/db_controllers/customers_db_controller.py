@@ -3,7 +3,7 @@ from sqlalchemy import select, or_, and_
 from models.customers_model import Cacus
 from schemas.user_schema import UserRegistrationSchema
 from utils.auth import get_current_normal_user
-from schemas.customers_schema import CustomersSchema
+from schemas.customers_schema import CustomersSchema, CustomerOfferSchema
 from typing import List
 from fastapi import Depends, HTTPException, status
 from logs import setup_logger
@@ -17,13 +17,23 @@ class CustomersDBController:
         super().__init__()
         self.db = db  # Use the session passed in from the route handler
 
+    async def get_customer_by_id(
+        self, zid: int, customer_id: str, current_user: UserRegistrationSchema = Depends(get_current_normal_user)
+    ) -> CustomersSchema:
+        """Get a customer by ID and business ID."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+        pass
+
+   
+
     async def get_all_customers(
         self, zid: int, customer: str, employee_id:str, limit: int, offset: int,  current_user: UserRegistrationSchema = Depends(get_current_normal_user),
     ) -> List[CustomersSchema]: 
         """Get all customers based on filter criteria."""
         if self.db is None:
             raise Exception("Database session not initialized.")
-
+ 
         try:
             user_id = employee_id
             
@@ -324,4 +334,47 @@ class CustomersDBController:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error retrieving areas"
+            )
+
+    async def create_offer(self, request: CustomerOfferSchema, current_user: UserRegistrationSchema):
+        """Create/Update offer for customers in a specific segment."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+        
+        try:
+            # Update all customers whose xtitle starts with the selected segment            # Get the string value from the enum
+            segment_value = request.xtitle.value
+            
+            result = await self.db.execute(
+                Cacus.__table__.update()
+                .where(
+                    Cacus.xtitle.ilike(f"%{segment_value}%")  # Using ilike to match segment value anywhere in title
+                )
+                .values(
+                    xcreditr=request.xcreditr
+                )
+            )
+
+            if result.rowcount == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No customers found in segment starting with: {request.xtitle}"
+                )
+
+            await self.db.commit()
+            return {
+                "message": f"Successfully updated offers for all customers in segment starting with: {request.xtitle}",
+                "updated_count": result.rowcount,
+                "offer": request.xcreditr
+            }
+            
+        except HTTPException:
+            await self.db.rollback()
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error updating offers for segment {request.xtitle}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error updating customer offers"
             )

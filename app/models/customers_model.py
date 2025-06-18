@@ -17,4 +17,9 @@ class Cacus(Base):
     xsp1 = Column(String, index=True)
     xsp2 = Column(String, index=True)
     xsp3 = Column(String, index=True)
+    # For Offer Columns
+    xtitle = Column(String, ) # Here will retrive the current customer's segment title
+    xfax = Column(String, ) # Here will retrive the current customer's segmentation score number between 0.0 to 1.0
+    xcreditr = Column(String, ) # Here will retrive the current customer's offer receiving 
+    
  
