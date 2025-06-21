@@ -17,14 +17,6 @@ class CustomersDBController:
         super().__init__()
         self.db = db  # Use the session passed in from the route handler
 
-    async def get_customer_by_id(
-        self, zid: int, customer_id: str, current_user: UserRegistrationSchema = Depends(get_current_normal_user)
-    ) -> CustomersSchema:
-        """Get a customer by ID and business ID."""
-        if self.db is None:
-            raise Exception("Database session not initialized.")
-        pass
-
    
 
     async def get_all_customers(
@@ -378,3 +370,4 @@ class CustomersDBController:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error updating customer offers"
             )
+

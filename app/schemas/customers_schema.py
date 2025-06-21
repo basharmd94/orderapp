@@ -166,3 +166,27 @@ class CustomerOfferSchema(BaseModel):
                 }
             }
         }
+ 
+class CustomerDetailSchema(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone: str
+    net_yearly_purchase: float
+    net_monthly_purchase: float
+    target: float
+    gap: float
+    is_eligible_for_offer: bool
+    offer: str
+    
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "name": "John Doe",
+                "email": "john.doe@example.com",
+                "phone": "+1234567890",
+                "segment": "Solid Performer"
+            }
+        }

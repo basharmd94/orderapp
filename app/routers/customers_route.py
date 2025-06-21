@@ -10,6 +10,7 @@ from schemas.customers_schema import (
     CustomerOfferSchema
 )
 from schemas.user_schema import UserRegistrationSchema
+from schemas.sales_return_schema import NetSalesWithAllReturnsResponse
 from typing import List, Union
 from typing_extensions import Annotated
 from utils.auth import get_current_normal_user, get_current_admin
@@ -17,6 +18,7 @@ from utils.error import error_details
 from controllers.db_controllers.customers_db_controller import (
     CustomersDBController,
 )
+from controllers.db_controllers.sales_return_db_controller import SalesReturnDBController
 from logs import setup_logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
@@ -27,7 +29,7 @@ logger = setup_logger()
 
 
 # Route to get a customer by ID and business ID
-@router.get("/single-customer/{zid}/{customer_id}", response_model=CustomersSchema)
+@router.get("/customer-by-id/{zid}/{customer_id}", response_model=NetSalesWithAllReturnsResponse)
 async def get_customer_by_id(
     request: Request,
     zid: int,
@@ -35,17 +37,17 @@ async def get_customer_by_id(
     db: AsyncSession = Depends(get_db),
     current_user: UserRegistrationSchema = Depends(get_current_normal_user),
 ):
-    customers_db_controller = CustomersDBController(db)
+    sales_return_db_controller = SalesReturnDBController(db)
 
     try:
-        customer = await customers_db_controller.get_customer_by_id(zid, customer_id, current_user)
-        if not customer:
+        net_sales = await sales_return_db_controller.get_net_sales_with_all_returns(zid, customer_id)
+        if not net_sales:
             logger.info(f"Customer with ID {customer_id} not found in business {zid}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer with ID {customer_id} not found in business {zid}"
             )
-        return customer
+        return net_sales
 
     except ValueError as e:
         logger.error(f"Error getting Customer by ID: {e}")

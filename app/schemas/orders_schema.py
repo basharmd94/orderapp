@@ -159,3 +159,18 @@ class BulkOpmobSchema(BaseModel):
                 },
             ]
         }
+
+
+class GrossSalesResponse(BaseModel):
+    gross_sales: float
+    total_quantity: int
+    total_orders: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "gross_sales": 50000.0,
+                "total_quantity": 250,
+                "total_orders": 50
+            }
+        }

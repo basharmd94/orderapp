@@ -39,8 +39,58 @@ class Opmob(Base):
 
 class Opord(Base):
     __tablename__ = "opord"
+    __table_args__ = {'extend_existing': True}
+
+    zid = Column(Integer)
+    xdate = Column(Date)  # date
+    xordernum = Column(String, primary_key=True)  # character varying
+    xdate = Column(Date)  # date
+    xcus = Column(String)  # character varying
+    
+class Opodt(Base):
+    __tablename__ = "opodt"
+    __table_args__ = {'extend_existing': True}
 
     zid = Column(Integer)
     xordernum = Column(String, primary_key=True)  # character varying
+    xitem = Column(String)  # character varying
+    xqty = Column(Integer)
+    xlineamt = Column(Float)
+
+
+# sales return model
+class Opcrn(Base):
+    __tablename__ = "opcrn"
+
+    zid = Column(Integer)
+    xcrnnum = Column(String, primary_key=True)  # character varying
+    xcus = Column(String)  # character varying
+    xdate = Column(String)  # character varying
+
+class Opcdt(Base):
+    __tablename__ = "opcdt"
+
+    zid = Column(Integer)
+    xcrnnum = Column(String, primary_key=True)  # character varying
+    xitem = Column(String)  # character varying
+    xqty = Column(Integer)
+    xlineamt = Column(Float)
+
+
+# damage return model
+
+class Imtemptrn(Base):
+    __tablename__ = "imtemptrn"
+
+    zid = Column(Integer)
+    ximtmptrn = Column(String, primary_key=True)  # character varying
+    xqty = Column(Integer)
+    xcus = Column(String)  # character varying
     xdate = Column(Date)  # date
-    
+
+class Imtemptdt(Base):
+    __tablename__ = "imtemptdt"
+
+    zid = Column(Integer)
+    ximtmptrn = Column(String, primary_key=True)  # character varying
+    xlineamt = Column(Float)  # double precision
