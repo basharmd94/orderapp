@@ -32,6 +32,7 @@ class Imtrn(Base):
     xitem = Column(String, ForeignKey("caitem.xitem"), primary_key=True, index=True)
     xqty = Column(Numeric(10, 2))
     xsign = Column(Integer)
+    xwh = Column(String, index=True)
 
 
 class Opspprc(Base):
