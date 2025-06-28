@@ -43,6 +43,9 @@ class CustomersDBController:
                     Cacus.xsp1.label("xsp1"),
                     Cacus.xsp2.label("xsp2"),
                     Cacus.xsp3.label("xsp3"),
+                    Cacus.xtitle.label("xtitle"),
+                    Cacus.xfax.label("xfax"),
+                    Cacus.xcreditr.label("xcreditr"),
                 )
                 .filter(
                     Cacus.zid == zid,
@@ -76,9 +79,7 @@ class CustomersDBController:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No customers found for employee ID: {user_id}"
-                )
-
-            # Convert query results to list of CustomersSchema instances
+                )            # Convert query results to list of CustomersSchema instances
             customers = [
                 CustomersSchema(
                     zid=customer.zid,
@@ -93,6 +94,10 @@ class CustomersDBController:
                     xsp1=customer.xsp1,
                     xsp2=customer.xsp2,
                     xsp3=customer.xsp3,
+                    # Split the xtitle at hyphen and take first part
+                    xtitle=customer.xtitle.split('-')[0] if customer.xtitle else None,
+                    xfax=customer.xfax, 
+                    xcreditr=customer.xcreditr
                 )
                 for customer in customers_records
             ]

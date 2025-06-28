@@ -15,6 +15,9 @@ class CustomersSchema(BaseModel):
     xsp1: Optional[str] = None
     xsp2: Optional[str] = None
     xsp3: Optional[str] = None
+    xtitle: Optional[str] = None  # Customer segment title
+    xfax: Optional[str] = None  # Customer segmentation score (0.0 to 1.0)
+    xcreditr: Optional[str] = None  # Offer details
 
     class Config:
         from_attributes = True
