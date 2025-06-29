@@ -133,17 +133,37 @@ class CustomerSegment(str, Enum):
     VALUED_PARTNER = "Valued Partner"
     TOP_TIER = "Top Tier"
     ELITE_CHAMPION = "Elite Champion"
-
+ 
 class CustomerOfferSchema(BaseModel):
+    """
+    Schema for customer Offer data.
+    - **zid**: Unique customer ID
+    - **xtitle**: Customer segment title (e.g., "Developing-1")
+    - **xcreditr**: Default offer for the customer
+    - **xmonper**: Extra sales percentage based on segmentation
+    - **xmondiscper**: Discount percentage based on segmentation
+    - **xisgotmon**: Whether the customer got monitoring offer ('True'/'False')
+    - **xisgotdefault**: Whether the customer got default offer ('True'/'False')
+    """
+    zid: int
     xtitle: CustomerSegment  # Customer's segment title as enum
-    xcreditr: str  # What offer the customer is eligible for
-
+    xcreditr: Optional[str] = None  # What offer the customer is eligible for
+    xmonper: Optional[int] = None  # Extra sales percentage based on segmentation
+    xmondiscper: Optional[int] = None  # Discount percentage based on segmentation
+    xisgotmon: Optional[str] = 'false' # Whether the customer got monitoring offer
+    xisgotdefault: Optional[str] = 'false' # Whether the customer got default offer
+ 
     class Config:
         from_attributes = True
         json_schema_extra = {
             "example": {
-                "xtitle": "Solid Performer",
-                "xcreditr": "Free Umbrella with next purchase"
+                "zid": 100001,
+                "xtitle": "Developing",
+                "xcreditr": "Free Tshirt",
+                "xmonper": 10,
+                "xmondiscper": 5,
+                "xisgotmon": 'true',
+                "xisgotdefault": 'false'
             }
         }
         schema_extra = {
@@ -191,5 +211,33 @@ class CustomerDetailSchema(BaseModel):
                 "email": "john.doe@example.com",
                 "phone": "+1234567890",
                 "segment": "Solid Performer"
+            }
+        }
+
+class IsGotDefaultOfferSchema(BaseModel):
+    zid: int
+    xcus: str
+
+    class Config:
+        from_attributes = True
+
+        json_schema_extra = {
+            "example": {
+                "zid": 100001,
+                "xcus": "CUS-00001"
+            }
+        }
+
+class IsGotMonitoringOfferSchema(BaseModel):
+    zid: int
+    xcus: str
+
+    class Config:
+        from_attributes = True
+
+        json_schema_extra = {
+            "example": {
+                "zid": 100001,
+                "xcus": "CUS-001581"
             }
         }

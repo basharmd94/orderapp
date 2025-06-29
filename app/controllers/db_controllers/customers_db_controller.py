@@ -341,45 +341,147 @@ class CustomersDBController:
             )
 
     async def create_offer(self, request: CustomerOfferSchema, current_user: UserRegistrationSchema):
-        """Create/Update offer for customers in a specific segment."""
+        """Create/Update offer for customers in a specific segment and zid."""
         if self.db is None:
             raise Exception("Database session not initialized.")
         
         try:
-            # Update all customers whose xtitle starts with the selected segment            # Get the string value from the enum
             segment_value = request.xtitle.value
-            
             result = await self.db.execute(
                 Cacus.__table__.update()
                 .where(
-                    Cacus.xtitle.ilike(f"%{segment_value}%")  # Using ilike to match segment value anywhere in title
+                    (Cacus.zid == request.zid) &
+                    (Cacus.xtitle.ilike(f"%{segment_value}%"))
                 )
                 .values(
-                    xcreditr=request.xcreditr
+                    xcreditr=request.xcreditr,
+                    xmonper=request.xmonper,
+                    xmondiscper=request.xmondiscper,
+                    xisgotmon=request.xisgotmon,
+                    xisgotdefault=request.xisgotdefault
                 )
-            )
+            )   
 
             if result.rowcount == 0:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"No customers found in segment starting with: {request.xtitle}"
+                    detail=f"No customers found in zid {request.zid} and segment containing: {request.xtitle}"
                 )
 
             await self.db.commit()
             return {
-                "message": f"Successfully updated offers for all customers in segment starting with: {request.xtitle}",
+                "message": f"Successfully updated offers for all customers in zid {request.zid} and segment containing: {request.xtitle}",
                 "updated_count": result.rowcount,
                 "offer": request.xcreditr
             }
-            
         except HTTPException:
             await self.db.rollback()
             raise
         except Exception as e:
             await self.db.rollback()
-            logger.error(f"Error updating offers for segment {request.xtitle}: {str(e)}")
+            logger.error(f"Error updating offers for zid {request.zid} segment {request.xtitle}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error updating customer offers"
             )
+    # is customer got monitoring offer
 
+    async def is_got_monitoring_offer(self, zid: int, xcus: str):
+        """Atomically check & set xisgotmon to 'true' for a customer."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        try:
+            # Use savepoint to avoid "transaction already begun" error
+            async with self.db.begin_nested():
+                query = select(Cacus).filter(
+                    Cacus.zid == zid,
+                    Cacus.xcus == xcus
+                ).with_for_update()
+
+                result = await self.db.execute(query)
+                customer = result.scalar_one_or_none()
+
+                if not customer:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Customer not found"
+                    )
+
+                if customer.xisgotmon == 'true':
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Monitoring offer already given"
+                    )
+
+                customer.xisgotmon = 'true'
+
+            await self.db.commit()
+            await self.db.refresh(customer)
+
+            return {
+                "message": "Monitoring offer successfully given",
+                "has_monitoring_offer": True
+            }
+
+        except HTTPException:
+            await self.db.rollback()
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error checking/setting monitoring offer for customer {xcus}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error checking/setting monitoring offer"
+            )
+        
+    # is customer got default offer
+    async def is_got_default_offer(self, zid: int, xcus: str):
+        """Atomically check & set xisgotdefault to 'true' for a customer."""
+        if self.db is None:
+            raise Exception("Database session not initialized.")
+
+        try:
+            # Use savepoint to allow nested transaction behavior
+            async with self.db.begin_nested():
+                query = select(Cacus).filter(
+                    Cacus.zid == zid,
+                    Cacus.xcus == xcus
+                ).with_for_update()
+
+                result = await self.db.execute(query)
+                customer = result.scalar_one_or_none()
+
+                if not customer:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Customer not found"
+                    )
+
+                if customer.xisgotdefault == 'true':
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Default offer already given"
+                    )
+
+                customer.xisgotdefault = 'true'
+
+            # Commit outer transaction
+            await self.db.commit()
+            await self.db.refresh(customer)
+
+            return {
+                "message": "Default offer successfully given",
+                "has_default_offer": True
+            }
+
+        except HTTPException:
+            await self.db.rollback()
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error checking/setting default offer for customer {xcus}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error checking/setting default offer"
+            )

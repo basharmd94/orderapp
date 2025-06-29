@@ -7,7 +7,9 @@ from schemas.customers_schema import (
     SalesmanUpdateResponse,
     AreaByZidRequest,
     AreaResponse,
-    CustomerOfferSchema
+    CustomerOfferSchema,
+    IsGotDefaultOfferSchema,
+    IsGotMonitoringOfferSchema
 )
 from schemas.user_schema import UserRegistrationSchema
 from schemas.sales_return_schema import NetSalesWithAllReturnsResponse
@@ -246,6 +248,14 @@ async def create_offer(
         db (AsyncSession): The database session to use.
         current_user (UserRegistrationSchema): The user creating the offer.
 
+    Sample: 
+        -Developing
+        -Needs Attention
+        -Warning Zone
+        -Top Tier
+        -Critical Watch
+        -High Risk
+
     Returns:
         The created offer object.
 
@@ -264,4 +274,51 @@ async def create_offer(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating offer"
+        )
+# is customer got monitoring offer
+@router.post("/is-got-monitoring-offer", status_code=status.HTTP_200_OK)
+async def is_got_monitoring_offer(
+    request: IsGotMonitoringOfferSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user)
+):
+    """Check if a customer has a monitoring offer."""
+    try:
+        customers_controller = CustomersDBController(db)
+        result = await customers_controller.is_got_monitoring_offer(
+            zid=request.zid,
+            xcus=request.xcus
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking monitoring offer: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error checking monitoring offer"
+        )
+    
+# is customer got default offer
+@router.post("/is-got-default-offer", status_code=status.HTTP_200_OK)
+async def is_got_default_offer(
+    request: IsGotDefaultOfferSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserRegistrationSchema = Depends(get_current_normal_user)
+):
+    """Check if a customer has a default offer."""
+    try:
+        customers_controller = CustomersDBController(db)
+        result = await customers_controller.is_got_default_offer(
+            zid=request.zid,
+            xcus=request.xcus
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking default offer: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error checking default offer"
         )

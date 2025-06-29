@@ -1,5 +1,5 @@
 from database import Base
-from sqlalchemy import Column, Integer, String, func
+from sqlalchemy import Column, Integer, String, Numeric, func
 
 
 class Cacus(Base):
@@ -18,8 +18,11 @@ class Cacus(Base):
     xsp2 = Column(String, index=True)
     xsp3 = Column(String, index=True)
     # For Offer Columns
-    xtitle = Column(String, ) # Here will retrive the current customer's segment title
-    xfax = Column(String, ) # Here will retrive the current customer's segmentation score number between 0.0 to 1.0
-    xcreditr = Column(String, ) # Here will retrive the current customer's offer receiving 
-    
- 
+    # Offer Columns
+    xtitle = Column(String)  # Customer segment title (e.g., 'Developing-1')
+    xfax = Column(String)  # Segmentation score between 0.00 to 1.00
+    xcreditr = Column(String)  # Default offer description (e.g., 'Free Tshirt')
+    xmonper = Column(Numeric(5, 2))  # Monthly monitoring extra sale % (e.g., 5.00)
+    xmondiscper = Column(Numeric(5, 2))  # Monthly discount % (e.g., 2.00)
+    xisgotmon = Column(String)  # 'True' or 'False' if customer got monitoring offer
+    xisgotdefault = Column(String)  # 'True' or 'False' if customer got default offer
