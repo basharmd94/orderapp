@@ -162,7 +162,7 @@ class CustomerOfferSchema(BaseModel):
                 "xcreditr": "Free Tshirt",
                 "xmonper": 10,
                 "xmondiscper": 5,
-                "xisgotmon": 'true',
+                "xisgotmon": 'false',
                 "xisgotdefault": 'false'
             }
         }
