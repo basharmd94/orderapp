@@ -17,7 +17,6 @@ class Cacus(Base):
     xsp1 = Column(String, index=True)
     xsp2 = Column(String, index=True)
     xsp3 = Column(String, index=True)
-    # For Offer Columns
     # Offer Columns
     xtitle = Column(String)  # Customer segment title (e.g., 'Developing-1')
     xfax = Column(String)  # Segmentation score between 0.00 to 1.00

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select, or_,  extract, Integer, Numeric, cast
+from sqlalchemy import func, select, or_, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql.functions import sum, coalesce
@@ -7,12 +7,14 @@ from datetime import datetime, timedelta
 # Models
 from models.orders_model import Opord, Opodt, Imtemptrn, Imtemptdt, Opcrn, Opcdt
 from models.customers_model import Cacus
+
 # Schema
 from schemas.sales_return_schema import NetSalesWithAllReturnsResponse
 
+
 class SalesReturnDBController:
     def __init__(self, db: AsyncSession):
-        self.db = db  # Use the session passed in from the route handler
+        self.db = db
 
     async def get_net_sales_with_all_returns(
         self, zid: int, customer_id: str
@@ -20,15 +22,15 @@ class SalesReturnDBController:
         """
         Calculate Net Sales = Gross Sales – (Imtemptrn Returns + Opcrn Returns)
         Also calculates:
-          - This month net sales
-          - Target (avg_monthly_net_sales + 1000)
+          - Avg per order net sales = Yearly Net Sales / Total Order Count
+          - Target Sales = Net Sales * (1 + xmonper / 100)
           - Gap = target – this_month_net_sales
           - Offer from Cacus.xcreditr if gap <= 0, else motivational message
         """
 
         now = datetime.now()
-        from_date = datetime(now.year - 1, 1, 1)  # Jan 1 of last year
-        to_date = datetime(now.year, now.month, 1) - timedelta(days=1)  # Last day of previous month
+        from_date = datetime(now.year - 1, 1, 1)
+        to_date = datetime(now.year, now.month, 1) - timedelta(days=1)
 
         # This month date range
         this_month_start = datetime(now.year, now.month, 1)
@@ -38,7 +40,11 @@ class SalesReturnDBController:
         )
 
         # --- CUSTOMER INFO ---
-        cacus_query = select(Cacus.xcus, Cacus.xorg, Cacus.xadd1, Cacus.xcreditr).where(
+        cacus_query = select(
+            Cacus.xcus, Cacus.xorg, Cacus.xadd1,
+            Cacus.xcreditr, Cacus.xmonper, Cacus.xmondiscper,
+            Cacus.xisgotdefault, Cacus.xisgotmon
+        ).where(
             Cacus.zid == zid,
             Cacus.xcus == customer_id
         ).limit(1)
@@ -46,7 +52,6 @@ class SalesReturnDBController:
         cacus_result = await self.db.execute(cacus_query)
         customer_info = cacus_result.first()
 
-        # If no customer found, return early
         if not customer_info:
             return NetSalesWithAllReturnsResponse()
 
@@ -138,11 +143,17 @@ class SalesReturnDBController:
             .scalar_subquery()
         )
 
-        # Number of months between from_date and to_date
-        num_months_expr = (
-            extract("year", func.age(to_date, from_date)) * 12
-            + extract("month", func.age(to_date, from_date))
-            + 1
+        # --- CUSTOMER ORDER COUNT ---
+        customer_order_count = (
+            select(func.count(Opord.xordernum))
+            .join(Opodt, Opodt.xordernum == Opord.xordernum)
+            .where(
+                Opord.zid == zid,
+                Opodt.zid == zid,
+                Opord.xcus == customer_id,
+                Opord.xdate.between(from_date, to_date)
+            )
+            .scalar_subquery()
         )
 
         # Final query for metrics
@@ -155,14 +166,14 @@ class SalesReturnDBController:
                 - coalesce(imtemp_return_subq, 0)
                 - coalesce(opcrn_return_subq, 0)
             ).label("net_sales"),
-            num_months_expr.cast(Integer).label("number_of_months"),
+            coalesce(customer_order_count, 0).label("customer_order_count"),
             (
                 (
                     coalesce(gross_sales_subq, 0)
                     - coalesce(imtemp_return_subq, 0)
                     - coalesce(opcrn_return_subq, 0)
-                ) / cast(num_months_expr, Numeric)
-            ).label("avg_monthly_net_sales"),
+                ) / func.nullif(customer_order_count, 0)
+            ).label("avg_per_order_net_sales"),
             (
                 coalesce(this_month_gross_sales, 0)
                 - coalesce(this_month_imtemp_return, 0)
@@ -181,47 +192,77 @@ class SalesReturnDBController:
                     xadd1=customer_info.xadd1
                 )
 
-            # Compute target and gap
-            avg_monthly_net_sales = float(row.avg_monthly_net_sales) if row.avg_monthly_net_sales else 0.0
-            this_month_net_sales = float(row.this_month_net_sales) if row.this_month_net_sales else 0.0
+            # Extract values safely
+            net_sales = float(row.net_sales)
+            this_month_net_sales = float(row.this_month_net_sales)
+            customer_order_count = int(row.customer_order_count)
+            avg_per_order_net_sales = float(row.avg_per_order_net_sales) if row.avg_per_order_net_sales is not None else 0.0
 
-            target_sales = avg_monthly_net_sales + 1000
-            sales_gap = target_sales - this_month_net_sales
+            # Get xmonper with fallback
+            xmonper = float(customer_info.xmonper) if customer_info.xmonper not in (None, '') else 0.0
+            xmondiscper = float(customer_info.xmondiscper) if customer_info.xmondiscper not in (None, '') else 0.0
 
-            # Get base offer from Cacus.xcreditr with fallback
-            base_offer = "Free T-Shirt"  # Default fallback
-            if customer_info.xcreditr and customer_info.xcreditr.strip():
-                base_offer = customer_info.xcreditr.strip()
+            # Boolean conversion for flags
+            xisgotdefault = customer_info.xisgotdefault.lower() == 'true' if customer_info.xisgotdefault else 'false'
+            xisgotmon = customer_info.xisgotmon.lower() == 'true' if customer_info.xisgotmon else 'false'
 
-            # Build offer message
+            # Calculate monthly target: avg + percentage increase
+            this_month_target_sales = avg_per_order_net_sales * (1 + xmonper / 100)
+            # Compare actual vs target
+            sales_gap = this_month_target_sales - this_month_net_sales
+
+            # Build offers using private methods
+            default_offer = self._build_default_offer(customer_info.xcreditr, xisgotdefault)
+            monitory_offer = self._build_monitory_offer(xmondiscper, xisgotmon)
+
+            # Final offer logic
             if sales_gap <= 0:
-                offer_value = base_offer
+                offer_value = default_offer if xisgotdefault else monitory_offer if xisgotmon else "No offer"
             else:
-                offer_value = f"You are Tk- {abs(round(sales_gap))} away from getting {base_offer}"
+                offer_value = f"You are Tk- {abs(round(sales_gap))} away from getting {default_offer if xisgotdefault else monitory_offer if xisgotmon else 'an offer'}"
 
             return NetSalesWithAllReturnsResponse(
                 # Customer Info
                 xcus=customer_info.xcus,
                 xorg=customer_info.xorg,
                 xadd1=customer_info.xadd1,
+                xmonper=xmonper,
+                xcreditr=customer_info.xcreditr,
+                xmondiscper=xmondiscper,
+                xisgotdefault=xisgotdefault,
+                xisgotmon=xisgotmon,
 
                 # Sales & Returns
-                gross_sales=float(row.gross_sales),
-                imtemp_returns=float(row.imtemp_returns),
-                opcrn_returns=float(row.opcrn_returns),
-                net_sales=float(row.net_sales),
+                yearly_gross_sales=round(float(row.gross_sales), 2),
+                yearly_imtemp_returns=round(float(row.imtemp_returns), 2),
+                yearly_opcrn_returns=round(float(row.opcrn_returns), 2),
+                yearly_net_sales=round(net_sales, 2),
 
-                # Monthly Metrics
-                number_of_months=int(row.number_of_months),
-                avg_monthly_net_sales=round(avg_monthly_net_sales, 2),
+                # Order Metrics
+                yearly_customer_order_count=int(row.customer_order_count),
+                avg_per_order_net_sales=round(avg_per_order_net_sales, 2),
 
                 # This Month
                 this_month_net_sales=round(this_month_net_sales, 2),
-                target_sales=round(target_sales, 2),
+                this_month_target_sales=round(this_month_target_sales, 2),
                 sales_gap=round(sales_gap, 2),
 
-                # Offer
+                # Offers
+                default_offer=default_offer,
+                monitory_offer=monitory_offer,
                 offer=offer_value
             )
         except Exception as e:
             raise e
+        
+    def _build_default_offer(self, xcreditr: str, is_received: bool) -> str:
+        if is_received:
+            return f"You already got the {xcreditr.strip()}" if xcreditr and xcreditr.strip() else "You already got the default offer"
+        else:
+            return xcreditr.strip() if xcreditr and xcreditr.strip() else "No default offer"
+
+    def _build_monitory_offer(self, xmondiscper: float, is_received: bool) -> str:
+        if is_received:
+            return f"You already got the {xmondiscper:.0f}% discount" if xmondiscper > 0 else "You already got the monitory offer"
+        else:
+            return f"You will get {xmondiscper:.0f}% discount on your next purchase" if xmondiscper > 0 else "No monitory offer"

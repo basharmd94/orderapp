@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x1f4dd; Offer Creation &ndash; Simple Overview</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="-offer-creation--simple-overview">📝 Offer Creation – Simple Overview</h1>
+<h2 id="-what-it-does">🎯 What it does:</h2>
+<h2 id="allows-users-to-create-or-update-offers-for-a-group-of-customers-based-on-their-segmentation">Allows users to <strong>create or update offers</strong> for a group of customers based on their segmentation.</h2>
+<h2 id="-input-by-user">🧾 Input by User:</h2>
+<ul>
+<li><code>zid</code>: Branch ID</li>
+<li><code>xtitle</code>: Segment name (e.g., &quot;Developing&quot;)</li>
+<li>Offer values:
+<ul>
+<li><code>xcreditr</code>: Offer description (e.g., &quot;Free T-Shirt&quot;)</li>
+<li><code>xmonper</code>: Extra sale percentage</li>
+<li><code>xmondiscper</code>: Discount percentage</li>
+<li><code>xisgotmon</code>: Did they get monitoring offer? (<code>'true'</code> or <code>'false'</code>)</li>
+<li><code>xisgotdefault</code>: Did they get default offer? (<code>'true'</code> or <code>'false'</code>)</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>Note: <code>&quot;Developing&quot;</code> will match <code>&quot;Developing-1&quot;</code>, <code>&quot;Developing-2&quot;</code>, etc.</p>
+</blockquote>
+<hr>
+<h2 id="-how-it-works">🔍 How it works:</h2>
+<ol>
+<li>Find all customers with matching <code>zid</code> and segment</li>
+<li>Update their offer fields in bulk</li>
+<li>Save changes to database</li>
+<li>Show how many customers were updated</li>
+</ol>
+<hr>
+<h2 id="-success-example">✅ Success Example:</h2>
+<pre><code>Successfully updated 15 customers in zid 100001
+Offer: Free T-Shirt
+</code></pre>
+<hr>
+<h2 id="-if-no-match-found">❌ If No Match Found:</h2>
+<pre><code>No customers found in zid 100001 and segment: Developing
+</code></pre>
+<hr>
+<h2 id="-summary">💡 Summary:</h2>
+<p>This system helps assign offers quickly to groups of customers using segmentation.</p>
+<pre><code>
+</code></pre>
+<h1 id="-offer-eligibility-logic">📄 Offer eligibility Logic</h1>
+<h2 id="-how-it-works-1">🎯 How It Works</h2>
+<p>This system calculates how much a customer has spent after returns, and decides whether they qualify for an offer.</p>
+<h3 id="-net-sales">✅ Net Sales</h3>
+<p>Net sales = Total sales – Returns<br>
+(Returns include both types: Imtemptrn and Opcrn)</p>
+<h3 id="-avg-per-order-net-sales">🧮 Avg Per Order Net Sales</h3>
+<p>We calculate:</p>
+<blockquote>
+<p>Average net sale per order = Yearly net sales ÷ Number of orders</p>
+</blockquote>
+<h3 id="-monthly-target">🎯 Monthly Target</h3>
+<p>The system sets a monthly target using this formula:</p>
+<blockquote>
+<p>Monthly Target = Average net sale per order + xmonper%</p>
+</blockquote>
+<ul>
+<li><code>xmonper</code> is a percentage stored in the cacus table.</li>
+<li>Example: If average sale is 50,000 and <code>xmonper = 10</code>, then target = <strong>55,000</strong></li>
+</ul>
+<h3 id="-discount-offer-xmondiscper">💰 Discount Offer (<code>xmondiscper</code>)</h3>
+<p>This is the discount the customer can get if they meet the monthly target.</p>
+<p>If customer <strong>meets or exceeds</strong> the target:</p>
+<blockquote>
+<p>&quot;You will get X% discount on your next purchase&quot;</p>
+</blockquote>
+<p>If customer <strong>does not meet</strong> the target:</p>
+<blockquote>
+<p>&quot;You are Tk- Y away from getting X% discount&quot;</p>
+</blockquote>
+<h3 id="-did-they-already-get-the-offer">✅ Did They Already Get the Offer?</h3>
+<p>We check two flags:</p>
+<ul>
+<li><code>xisgotdefault</code>: Has the customer already received the default offer like <code>&quot;Free T-Shirt&quot;</code>?</li>
+<li><code>xisgotmon</code>: Has the customer already received the monetary discount?</li>
+</ul>
+<p>If either is <code>&quot;true&quot;</code>, the message becomes:</p>
+<blockquote>
+<p>&quot;You already got the Free T-Shirt&quot;<br>
+or<br>
+&quot;You already got the 2% discount&quot;</p>
+</blockquote>
+<hr>
+<h2 id="-final-output-example">📤 Final Output Example</h2>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;xcus&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;CUS-000003&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;xorg&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Rahima Enterprise&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;xadd1&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Shasangasa, Comilla&quot;</span><span class="hljs-punctuation">,</span>
+
+  <span class="hljs-attr">&quot;xmonper&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;xmondiscper&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;xcreditr&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Free Tshirt&quot;</span><span class="hljs-punctuation">,</span>
+
+  <span class="hljs-attr">&quot;xisgotdefault&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-keyword">false</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;xisgotmon&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-keyword">false</span><span class="hljs-punctuation">,</span>
+
+  <span class="hljs-attr">&quot;yearly_net_sales&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">17144847.18</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;avg_per_order_net_sales&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">52270.88</span><span class="hljs-punctuation">,</span>
+
+  <span class="hljs-attr">&quot;this_month_net_sales&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">820750</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;this_month_target_sales&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">57497.96</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;sales_gap&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">-763252.04</span><span class="hljs-punctuation">,</span>
+
+  <span class="hljs-attr">&quot;default_offer&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Free Tshirt&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;monitory_offer&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;You will get 2% discount on your next purchase&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;offer&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;You will get 2% discount on your next purchase&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+
+            
+            
+        </body>
+        </html>
