@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql.functions import sum, coalesce
 from datetime import datetime, timedelta
-
+from typing import Optional
 # Models
 from models.orders_model import Opord, Opodt, Imtemptrn, Imtemptdt, Opcrn, Opcdt
 from models.customers_model import Cacus
@@ -203,8 +203,15 @@ class SalesReturnDBController:
             xmondiscper = float(customer_info.xmondiscper) if customer_info.xmondiscper not in (None, '') else 0.0
 
             # Boolean conversion for flags
-            xisgotdefault = customer_info.xisgotdefault.lower() == 'true' if customer_info.xisgotdefault else 'false'
-            xisgotmon = customer_info.xisgotmon.lower() == 'true' if customer_info.xisgotmon else 'false'
+            # Convert string flags safely
+            xisgotdefault = None
+            if customer_info.xisgotdefault not in (None, '', 'null', 'None'):
+                xisgotdefault = customer_info.xisgotdefault.lower() == 'true'
+
+            xisgotmon = None
+            if customer_info.xisgotmon not in (None, '', 'null', 'None'):
+                xisgotmon = customer_info.xisgotmon.lower() == 'true'
+
 
             # Calculate monthly target: avg + percentage increase
             this_month_target_sales = avg_per_order_net_sales * (1 + xmonper / 100)
@@ -255,14 +262,18 @@ class SalesReturnDBController:
         except Exception as e:
             raise e
         
-    def _build_default_offer(self, xcreditr: str, is_received: bool) -> str:
-        if is_received:
+    def _build_default_offer(self, xcreditr: str, is_received: Optional[bool]) -> str:
+        if is_received is True:
             return f"You already got the {xcreditr.strip()}" if xcreditr and xcreditr.strip() else "You already got the default offer"
-        else:
+        elif is_received is False:
             return xcreditr.strip() if xcreditr and xcreditr.strip() else "No default offer"
-
-    def _build_monitory_offer(self, xmondiscper: float, is_received: bool) -> str:
-        if is_received:
+        else:  # is_received is None
+            return "No default offer"
+        
+    def _build_monitory_offer(self, xmondiscper: float, is_received: Optional[bool]) -> str:
+        if is_received is True:
             return f"You already got the {xmondiscper:.0f}% discount" if xmondiscper > 0 else "You already got the monitory offer"
-        else:
+        elif is_received is False:
             return f"You will get {xmondiscper:.0f}% discount on your next purchase" if xmondiscper > 0 else "No monitory offer"
+        else:  # is_received is None
+            return "No monitory offer"

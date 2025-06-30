@@ -1,5 +1,8 @@
 
-# 📝 Offer Creation – Simple Overview
+---
+
+---
+# 📝 Offer Creation
 
 ## 🎯 What it does:
 Allows users to **create or update offers** for a group of customers based on their segmentation.
@@ -40,10 +43,6 @@ No customers found in zid 100001 and segment: Developing
 ```
 
 ---
-## 💡 Summary:
-This system helps assign offers quickly to groups of customers using segmentation.
-
-
 
 
 ```
@@ -93,6 +92,7 @@ If either is `"true"`, the message becomes:
 > "You already got the Free T-Shirt"  
 or  
 > "You already got the 2% discount"
+> 
 
 ---
 
@@ -120,6 +120,6 @@ or
 
   "default_offer": "Free Tshirt",
   "monitory_offer": "You will get 2% discount on your next purchase",
-  "offer": "You will get 2% discount on your next purchase"
+
 }
 ```
